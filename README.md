@@ -1,27 +1,33 @@
 # SegundoParcial-ED
+
 Un programa hecho para el segundo parcial de ecuaciones diferenciales
 
 # TODO-LIST
 
 ## Estructura Base & Entrada de Datos
-- ❌ Diseñar interfaz de usuario (consola)
-- ❌ Implementar parser de ecuaciones diferenciales
-- ❌ Manejar entrada de condiciones iniciales
+
+- ✅ Diseñar interfaz de usuario (consola)
+- ❌ Implementar parser de ecuaciones diferenciales (isma)
+- ✅ Manejar entrada de condiciones iniciales (alma)
 - ❌ Validar formato de ecuaciones
 - ❌ Crear estructura de clases base
+
 ### archivos
+
 - `main`
 - `parser`
 - `interface`
 - `validator`
 
 ## Ecuaciones Homogéneas
-- ❌ Resolver polinomio característico
+
+- ❌ Resolver polinomio característico (isma)
 - ❌ Manejar raíces reales distintas/repetidas
 - ❌ Manejar raíces complejas
 - ❌ Generar solución general homogénea
 
 ### archivos
+
 - `homogeneous` - Solucionador homogéneo
 - `polynomial_solver` - Resolución de polinomios
 - `roots_analyzer` - Análisis de raíces
@@ -34,6 +40,7 @@ Un programa hecho para el segundo parcial de ecuaciones diferenciales
 - ❌ Manejar casos de duplicación
 
 ### archivos
+
 - `undetermined_coeff` - Método de coeficientes
 - `function_analyzer` - Análisis de funciones
 - `particular_solver` - Solución particular
