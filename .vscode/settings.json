@@ -1,14 +1,4 @@
 {
   "java.configuration.updateBuildConfiguration": "interactive",
-  "maven.terminal.favorites": [
-    {
-      "command": "mvn compile exec:java -Dexec.mainClass=com.ecuaciones.diferenciales.Main",
-      "debug": false
-    },
-    {
-      "command": "mvn -q compile exec:java",
-      "debug": false
-    }
-  ],
   "maven.view": "hierarchical"
 }

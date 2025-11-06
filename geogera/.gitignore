@@ -1,0 +1,24 @@
+# Maven build directory
+out/
+
+# Maven specific
+target/
+*.jar
+*.war
+*.ear
+*.class
+
+# IDE files (por si acaso)
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# Logs
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
