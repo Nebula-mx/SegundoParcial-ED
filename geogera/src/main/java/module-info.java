@@ -9,3 +9,4 @@ module com.ecuaciones.diferenciales {
     // Export the top-level package so a non-JavaFX console Main can be run as a module
     exports com.ecuaciones.diferenciales;
 }
+

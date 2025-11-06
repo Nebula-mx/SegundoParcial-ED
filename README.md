@@ -8,8 +8,8 @@ Un programa hecho para el segundo parcial de ecuaciones diferenciales
 
 - ✅ Diseñar interfaz de usuario (consola)
 - ❌ Implementar parser de ecuaciones diferenciales (isma)
-- ✅ Manejar entrada de condiciones iniciales (alma)
-- ❌ Validar formato de ecuaciones
+- ✅ Manejar entrada de condiciones iniciales (Alma)
+- ✅ Validar formato de ecuaciones(Alma)
 - ❌ Crear estructura de clases base
 
 ### archivos
