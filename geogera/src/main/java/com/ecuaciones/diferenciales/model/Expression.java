@@ -1,4 +1,4 @@
-package com.ecuaciones.diferenciales;
+package com.ecuaciones.diferenciales.model;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
