@@ -5,3 +5,4 @@ module com.ecuaciones.diferenciales {
     opens com.ecuaciones.diferenciales to javafx.fxml;
     exports com.ecuaciones.diferenciales;
 }
+

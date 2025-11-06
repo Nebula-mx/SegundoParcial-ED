@@ -1,38 +1,75 @@
 package com.ecuaciones.diferenciales;
 
-import javafx.application.Application;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.stage.Stage;
+import java.util.Scanner;
 
-import java.io.IOException;
-
-/**
- * JavaFX App
- */
-public class App extends Application {
-
-    private static Scene scene;
-
-    @Override
-    public void start(Stage stage) throws IOException {
-        scene = new Scene(loadFXML("primary"), 640, 480);
-        stage.setScene(scene);
-        stage.show();
-    }
-
-    static void setRoot(String fxml) throws IOException {
-        scene.setRoot(loadFXML(fxml));
-    }
-
-    private static Parent loadFXML(String fxml) throws IOException {
-        FXMLLoader fxmlLoader = new FXMLLoader(App.class.getResource(fxml + ".fxml"));
-        return fxmlLoader.load();
-    }
+public class App {
 
     public static void main(String[] args) {
-        launch();
+        try (Scanner scanner = new Scanner(System.in)) {
+
+            System.out.println("Ecuaciones Diferenciales. proyecto del Terror");
+            System.out.print("Ingresa una ecuación: ");
+            String ecuacion = scanner.nextLine().toLowerCase();
+
+            if (esEcuacionDiferencial(ecuacion)) {
+                System.out.println("La ecuación ingresada es una ecuación diferencial.");
+
+                int orden = obtenerOrden(ecuacion);
+                System.out.println("Orden de la ecuación: " + orden);
+
+                System.out.print("¿Deseas ingresar condiciones iniciales? (sí/no): ");
+                String respuesta = scanner.nextLine().trim().toLowerCase();
+
+                if (respuesta.equals("si")) {
+                    ingresarCondicionesIniciales(scanner, orden);
+                } else {
+                    System.out.println("Sin condiciones iniciales. ");
+                }
+
+            } else {
+                System.out.println(" La ecuación ingresada NO es una ecuación diferencial.");
+            }
+        }
     }
 
+    //para la notación
+    public static boolean esEcuacionDiferencial(String ecuacion) {
+        String[] patrones = {
+            "dy/dx", "d2y/dx2", "d3y/dx3",
+            "y'", "y''", "y'''",
+            "d/dx", "d/dt"
+        };
+        for (String patron : patrones) {
+            if (ecuacion.contains(patron)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // orden
+    public static int obtenerOrden(String ecuacion) {
+        if (ecuacion.contains("d3y/dx3") || ecuacion.contains("y'''")) return 3;
+        if (ecuacion.contains("d2y/dx2") || ecuacion.contains("y''")) return 2;
+        if (ecuacion.contains("dy/dx") || ecuacion.contains("y'")) return 1;
+        return 0;
+    }
+
+    // C.I.
+    public static void ingresarCondicionesIniciales(Scanner scanner, int orden) {
+        System.out.println("\nIngreso de Condiciones Iniciales ");
+
+        System.out.print("Valor inicial de x0 (o t0): ");
+        double x0 = scanner.nextDouble();
+
+        System.out.print("Valor de y(x0): ");
+        double y0 = scanner.nextDouble();
+
+        double[] derivadas = new double[Math.max(0, orden - 1)];
+        for (int i = 0; i < derivadas.length; i++) {
+            System.out.print("Valor de y" + "'".repeat(i + 1) + "(x0): ");
+            derivadas[i] = scanner.nextDouble();
+        }
+
+    }
 }
