@@ -7,7 +7,7 @@ Un programa hecho para el segundo parcial de ecuaciones diferenciales
 ## Estructura Base & Entrada de Datos
 
 - ✅ Diseñar interfaz de usuario (consola)
-- ❌ Implementar parser de ecuaciones diferenciales (isma)
+- ✅ Implementar parser de ecuaciones diferenciales (isma)
 - ✅ Manejar entrada de condiciones iniciales (Alma)
 - ✅ Validar formato de ecuaciones(Alma)
 - ❌ Crear estructura de clases base
