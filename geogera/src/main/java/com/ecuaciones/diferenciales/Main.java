@@ -2,10 +2,14 @@ package com.ecuaciones.diferenciales;
 
 import java.util.Scanner;
 
+import com.ecuaciones.diferenciales.model.EcuationParser;
+import com.ecuaciones.diferenciales.model.templates.ExpressionData;
+
 public class Main {
 
     public static void main(String[] args) {
         try (Scanner scanner = new Scanner(System.in)) {
+            EcuationParser parser = new EcuationParser();
 
             System.out.println("Ecuaciones Diferenciales. proyecto del Terror");
             System.out.print("Ingresa una ecuación: ");
@@ -28,6 +32,23 @@ public class Main {
 
             } else {
                 System.out.println(" La ecuación ingresada NO es una ecuación diferencial.");
+            }
+
+            ExpressionData data = parser.parse(ecuacion);
+
+            System.out.println("\nDatos extraídos:");
+            System.out.println("Expresión: " + data.getExpression());
+            System.out.println("Notación: " + data.getNotation());
+            System.out.println("Es homogénea: " + data.getIsHomogeneous());
+            System.out.println("Orden: " + data.getOrder());
+            System.out.println("Variables: " + data.getVariables());
+            System.out.print("Coeficientes: ");
+            Integer[] coeffs = data.getCoefficients();
+            if (coeffs != null) {
+                for (Integer coeff : coeffs) {
+                    System.out.print(coeff + " ");
+                }
+                System.out.println("\n");
             }
         }
     }
