@@ -2,6 +2,12 @@
 
 Un programa hecho para el segundo parcial de ecuaciones diferenciales
 
+## Uso del singleton ExpressionData
+este singleton contiene la informacion resultante del parse de la ecuacion una vez que paso por el input, para acceder a la informacion sin necesidad de llamar al metodo parse de EcuationParser una y otra vez, solo se tiene que declarar una variable de tipo **ExpressionData** y en lugar de llamar al constructor, hacer lo siguiente:
+
+- `ExpressionData data = ExpressionData.getInstance();`
+Con eso se puede acceder a toda la informacion sobre la ecuacion que se este usando mediante los getters y setters que proporciona.
+
 # TODO-LIST
 
 ## Estructura Base & Entrada de Datos

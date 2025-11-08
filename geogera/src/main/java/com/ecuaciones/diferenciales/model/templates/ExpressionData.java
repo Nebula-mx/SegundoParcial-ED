@@ -4,13 +4,34 @@ import java.util.List;
 import java.util.Map;
 
 public class ExpressionData {
-  public String expression;
-  public String notation;
-  public Integer order;
-  public Boolean isHomogeneous;
-  public List<String> variables;
-  public Integer[] coefficients;
-  public Map<String, String> independentTerm;
+  private String expression;
+  private String notation;
+  private Integer order;
+  private Boolean isHomogeneous;
+  private List<String> variables;
+  private Integer[] coefficients;
+  private Map<String, String> independentTerm;
+
+  private static ExpressionData instance = null;
+
+  private  ExpressionData() {
+    if(instance != null) {
+      throw new IllegalStateException("Ya existe una instancia de ExpressionData. Use getInstance() para acceder a ella.");
+    } else {
+        this.expression = "";
+        this.isHomogeneous = true;
+        this.coefficients = new Integer[]{};
+        this.independentTerm = null;
+        this.initialConditions = Map.of();
+    }
+  }
+
+  public static ExpressionData getInstance() {
+    if (instance == null) {
+      instance = new ExpressionData();
+    }
+    return instance;
+  }
   
   public List<String> getVariables() {
     return variables;
@@ -74,16 +95,5 @@ public class ExpressionData {
 
   public void setInitialConditions(Map<String, Double> initialConditions) {
     this.initialConditions = initialConditions;
-  }
-
-  public ExpressionData() {
-    // Inicializar con valores predeterminados
-    this.expression = "";
-    this.isHomogeneous = true;
-    this.coefficients = new Integer[]{};
-    this.independentTerm = null;
-    this.initialConditions = Map.of();
-  }
-
-  
+  }  
 }

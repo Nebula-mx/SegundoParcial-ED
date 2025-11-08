@@ -10,7 +10,7 @@ import com.ecuaciones.diferenciales.model.templates.ExpressionData;
 public class EcuationParser {
   private String input;
   private List<String> variables;
-  private ExpressionData expressionData;
+  private ExpressionData expressionData = ExpressionData.getInstance();
 
   // Acepta ecuaciones en forma: d3y/dx + 3d2y/dx + 5dy/dx + 6y = 0
   private String leibnizRegex = "(?:\\d*d\\d*[a-zA-Z]/d[a-zA-Z])(?:[\\s]*[+\\-][\\s]*\\d*d\\d*[a-zA-Z]/d[a-zA-Z])*\\s*[+\\-]?\\s*\\d*[a-zA-Z]\\s*=.*";
@@ -89,17 +89,19 @@ public class EcuationParser {
   }
 
   public ExpressionData parse(String input) {
-    expressionData = new ExpressionData();
     this.input = input;
 
+    // Normalizar entrada (eliminar espacios) para facilitar el matching
+    String cleaned = input.replaceAll("\\s+", "");
+
     //identifica la notacion, variables y orden.
-    if(input.matches(leibnizRegex)) {
+    if (cleaned.matches(leibnizRegex)) {
       expressionData.setNotation("Leibniz");
       // Para extraer términos individuales usamos un patrón más específico
-      variables = findAll("\\d*d\\d*[a-zA-Z]/d[a-zA-Z]|\\d*[a-zA-Z](?!['/])", input);
-    } else if(input.matches(lagrangeRegex)) {
+      variables = findAll("\\d*d\\d*[a-zA-Z]/d[a-zA-Z]|\\d*[a-zA-Z](?!['/])", cleaned);
+    } else if (cleaned.matches(lagrangeRegex)) {
       // Para buscar términos individuales usamos un patrón más específico
-      variables = findAll("\\d*[a-zA-Z](?:'*|\\(\\d+\\))", input);
+      variables = findAll("\\d*[a-zA-Z](?:'*|\\(\\d+\\))", cleaned);
       expressionData.setNotation("Lagrange");
     } else {
       throw new IllegalArgumentException("Notación de ecuación diferencial no reconocida.");
