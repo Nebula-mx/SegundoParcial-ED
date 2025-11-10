@@ -1,0 +1,10 @@
+com\ecuaciones\diferenciales\model\Expression$OpToken.class
+com\ecuaciones\diferenciales\model\Expression$VariableToken.class
+com\ecuaciones\diferenciales\model\ODEParser$Result.class
+com\ecuaciones\diferenciales\model\templates\ExpressionData.class
+com\ecuaciones\diferenciales\model\Expression.class
+com\ecuaciones\diferenciales\model\Expression$NumberToken.class
+com\ecuaciones\diferenciales\model\EcuationParser.class
+com\ecuaciones\diferenciales\model\ODEParser.class
+com\ecuaciones\diferenciales\model\Expression$FuncToken.class
+com\ecuaciones\diferenciales\model\Expression$Token.class
