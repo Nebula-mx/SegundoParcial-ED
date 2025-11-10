@@ -28,7 +28,7 @@ Con eso se puede acceder a toda la informacion sobre la ecuacion que se este usa
 ## Ecuaciones Homogéneas
 
 - ❌ Resolver polinomio característico (isma)
-- ❌ Manejar raíces reales distintas/repetidas
+- ❌ Manejar raíces reales distintas/repetidas (Alma)
 - ❌ Manejar raíces complejas
 - ❌ Generar solución general homogénea
 
