@@ -16,7 +16,7 @@ Con eso se puede acceder a toda la informacion sobre la ecuacion que se este usa
 - ✅ Implementar parser de ecuaciones diferenciales (isma)
 - ✅ Manejar entrada de condiciones iniciales (Alma)
 - ✅ Validar formato de ecuaciones(Alma)
-- ❌ Crear estructura de clases base
+- ✅ Crear estructura de clases base
 
 ### archivos
 
@@ -27,10 +27,10 @@ Con eso se puede acceder a toda la informacion sobre la ecuacion que se este usa
 
 ## Ecuaciones Homogéneas
 
-- ❌ Resolver polinomio característico (isma)
-- ❌ Manejar raíces reales distintas/repetidas (Alma)
-- ❌ Manejar raíces complejas
-- ❌ Generar solución general homogénea
+- ✅ Resolver polinomio característico
+- 🏗 Manejar raíces reales distintas/repetidas
+- ✅ Manejar raíces complejas
+- ✅ Generar solución general homogénea
 
 ### archivos
 

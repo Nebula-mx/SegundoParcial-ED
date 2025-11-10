@@ -4,9 +4,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.ArrayList;
 
 import com.ecuaciones.diferenciales.model.EcuationParser;
 import com.ecuaciones.diferenciales.model.roots.Root;
@@ -16,8 +13,7 @@ import com.ecuaciones.diferenciales.solver.homogeneous.PolynomialSolver;
 import com.ecuaciones.diferenciales.solver.nonhomogeneous.UndeterminedCoeffResolver; 
 import com.ecuaciones.diferenciales.solver.nonhomogeneous.UndeterminedCoeff;
 import com.ecuaciones.diferenciales.solver.nonhomogeneous.VariationOfParametersSolver; 
-import com.ecuaciones.diferenciales.variation.WronskianCalculator; 
-import com.ecuaciones.diferenciales.utils.LinearSystemSolver;
+import com.ecuaciones.diferenciales.variation.WronskianCalculator;
 
 public class Main{
     

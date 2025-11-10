@@ -69,7 +69,6 @@ public class UndeterminedCoeff {
         return "x^" + i;
     }
 
-    // Corregido para compatibilidad con Java 8 (usando AbstractMap.SimpleEntry)
     private Map.Entry<List<String>, Character> generateAtomicPolynomials(int degree, char startCoeff, int numPolys) {
         List<String> polynomialTerms = new ArrayList<>();
         char currentCoeff = startCoeff;
