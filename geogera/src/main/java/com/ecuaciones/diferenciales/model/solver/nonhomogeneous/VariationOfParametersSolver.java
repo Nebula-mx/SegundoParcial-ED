@@ -1,10 +1,11 @@
 package com.ecuaciones.diferenciales.model.solver.nonhomogeneous;
 
-import com.ecuaciones.diferenciales.variation.WronskianCalculator; 
 import java.util.ArrayList;
 import java.util.List;
 import java.text.DecimalFormat;
 import java.util.Locale;
+
+import com.ecuaciones.diferenciales.model.variation.WronskianCalculator;
 
 /**
  * Clase para resolver la EDO usando el método de Variación de Parámetros (VdP),

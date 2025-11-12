@@ -7,13 +7,13 @@ import java.util.Map;
 
 import com.ecuaciones.diferenciales.model.EcuationParser;
 import com.ecuaciones.diferenciales.model.roots.Root;
+import com.ecuaciones.diferenciales.model.solver.homogeneous.HomogeneousSolver;
+import com.ecuaciones.diferenciales.model.solver.homogeneous.PolynomialSolver;
+import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.UndeterminedCoeff;
+import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.UndeterminedCoeffResolver;
+import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.VariationOfParametersSolver;
 import com.ecuaciones.diferenciales.model.templates.ExpressionData;
-import com.ecuaciones.diferenciales.solver.homogeneous.HomogeneousSolver;
-import com.ecuaciones.diferenciales.solver.homogeneous.PolynomialSolver;
-import com.ecuaciones.diferenciales.solver.nonhomogeneous.UndeterminedCoeffResolver; 
-import com.ecuaciones.diferenciales.solver.nonhomogeneous.UndeterminedCoeff;
-import com.ecuaciones.diferenciales.solver.nonhomogeneous.VariationOfParametersSolver; 
-import com.ecuaciones.diferenciales.variation.WronskianCalculator;
+import com.ecuaciones.diferenciales.model.variation.WronskianCalculator;
 
 public class Main{
     

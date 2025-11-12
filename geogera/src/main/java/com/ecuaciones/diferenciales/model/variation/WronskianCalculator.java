@@ -1,4 +1,4 @@
-package com.ecuaciones.diferenciales.variation;
+package com.ecuaciones.diferenciales.model.variation;
 
 import com.ecuaciones.diferenciales.model.roots.Root; 
 import com.ecuaciones.diferenciales.utils.SymbolicDifferentiator; 
