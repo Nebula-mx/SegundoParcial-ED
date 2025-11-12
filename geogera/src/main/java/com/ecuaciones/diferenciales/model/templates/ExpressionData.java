@@ -1,38 +1,50 @@
 package com.ecuaciones.diferenciales.model.templates;
 
 import java.util.List;
+import java.util.ArrayList; 
 import java.util.Map;
+import java.util.HashMap;
 
+/**
+ * Contiene todos los datos parseados de la Ecuación Diferencial (EDO).
+ * Implementa un constructor estándar para asegurar que cada análisis de EDO 
+ * utilice una instancia limpia y segura de los datos.
+ */
 public class ExpressionData {
+  
   private String expression;
   private String notation;
   private Integer order;
   private Boolean isHomogeneous;
   private List<String> variables;
-  private Integer[] coefficients;
+  private Double[] coefficients; 
   private Map<String, String> independentTerm;
-
-  private static ExpressionData instance = null;
-
-  private  ExpressionData() {
-    if(instance != null) {
-      throw new IllegalStateException("Ya existe una instancia de ExpressionData. Use getInstance() para acceder a ella.");
-    } else {
-        this.expression = "";
-        this.isHomogeneous = true;
-        this.coefficients = new Integer[]{};
-        this.independentTerm = null;
-        this.initialConditions = Map.of();
-    }
-  }
-
-  public static ExpressionData getInstance() {
-    if (instance == null) {
-      instance = new ExpressionData();
-    }
-    return instance;
+  private Map<String, Double> initialConditions; 
+  
+  // *** CAMBIO CLAVE: Singleton eliminado. La instancia es creada directamente por el parser. ***
+  
+  /**
+   * Constructor estándar (público) que inicializa la estructura de datos limpia.
+   * La clase EcuationParser debe instanciar esta clase directamente.
+   */
+  public ExpressionData() {
+    // Se inicializa limpio, sin necesidad del método clearData()
+    this.expression = "";
+    this.notation = "";
+    this.order = 0;
+    this.isHomogeneous = true; 
+    this.variables = new ArrayList<>();
+    this.coefficients = new Double[]{}; 
+    this.independentTerm = new HashMap<>(); 
+    this.initialConditions = new HashMap<>(); 
   }
   
+  // El método clearData() se elimina ya que el constructor garantiza un estado limpio.
+  
+  // ===================================
+  // Getters y Setters
+  // ===================================
+
   public List<String> getVariables() {
     return variables;
   }
@@ -57,11 +69,10 @@ public class ExpressionData {
     this.order = order;
   }
 
-  public Map<String, Double> initialConditions;
-
   public Map<String, String> getIndependentTerm() {
     return independentTerm;
   }
+  
   public void setIndependentTerm(Map<String, String> independentTerm) {
     this.independentTerm = independentTerm;
   }
@@ -82,13 +93,14 @@ public class ExpressionData {
     this.isHomogeneous = isHomogeneous;
   }
 
-  public Integer[] getCoefficients() {
+  public Double[] getCoefficients() { 
     return coefficients;
   }
 
-  public void setCoefficients(Integer[] coefficients) {
+  public void setCoefficients(Double[] coefficients) { 
     this.coefficients = coefficients;
   }
+  
   public Map<String, Double> getInitialConditions() {
     return initialConditions;
   }

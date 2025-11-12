@@ -1,129 +1,130 @@
 package com.ecuaciones.diferenciales.model;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.ecuaciones.diferenciales.model.templates.ExpressionData;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.ArrayList;
 
-import com.ecuaciones.diferenciales.model.templates.ExpressionData;
+/**
+ * Clase encargada de parsear una Ecuación Diferencial Lineal de Coeficientes Constantes
+ * de la forma an*y^(n) + ... + a1*y' + a0*y = g(x).
+ */
+public class EcuationParser extends ODEParser {
 
-public class EcuationParser {
-  private String input;
-  private List<String> variables;
-  private ExpressionData expressionData = ExpressionData.getInstance();
-
-  // Acepta ecuaciones en forma: d3y/dx + 3d2y/dx + 5dy/dx + 6y = 0
-  private String leibnizRegex = "(?:\\d*d\\d*[a-zA-Z]/d[a-zA-Z])(?:[\\s]*[+\\-][\\s]*\\d*d\\d*[a-zA-Z]/d[a-zA-Z])*\\s*[+\\-]?\\s*\\d*[a-zA-Z]\\s*=.*";
-  private String lagrangeRegex = "(?:\\d*[a-zA-Z](?:'*|\\(\\d+\\)))(?:[+\\-]\\d*[a-zA-Z](?:'*|\\(\\d+\\)))*=.*";
-
-  public int getOrder() {
-    if (expressionData.getNotation() == null) {
-      throw new IllegalStateException("Debe llamar a parse() antes de getOrder()");
-    }
-
-    int maxOrder = 0;
-    for (String var : variables) {
-      int order = 0;
-      
-      if (expressionData.getNotation().equals("Leibniz")) {
-        // Para Leibniz (d2y/dx2, d^2y/dx^2) - busca el primer número después de 'd'
-        Matcher m = Pattern.compile("d(\\d+)").matcher(var);
-        order = m.find() ? Integer.parseInt(m.group(1)) : 1;
-      } else if (expressionData.getNotation().equals("Lagrange")) {
-        // Para Lagrange (y', y'', y(2)) - cuenta primas o toma el número del exponente
-        if (var.contains("(")) {
-          // Caso y(n)
-          Matcher m = Pattern.compile("\\((\\d+)\\)").matcher(var);
-          order = m.find() ? Integer.parseInt(m.group(1)) : 0;
-        } else {
-          // Caso y'
-          order = (int) var.chars().filter(ch -> ch == '\'').count();
-        }
-      }
-
-      if (order > maxOrder) {
-        maxOrder = order;
-      }
-    }
-    return maxOrder;
-  }
-
-  public Integer[] getCoefficients() {
-    List<Integer> coeffs = new ArrayList<>();
+    // Patrón simple: Captura el término del coeficiente seguido de la función y su derivada.
+    // Grupo 1: Coeficiente con signo (ej: +1, -4.5, -1)
+    // Grupo 2: Función (y''', y'', y', y^(n), y)
+    private static final Pattern TERM_PATTERN = Pattern.compile(
+        "([+-]\\s*\\d*\\.?\\d+\\s*)" + 
+        "(y'''|y''|y'|y\\^\\(\\d+\\)|y)"
+    );
     
-    for (String var : variables) {
-      if (expressionData.getNotation().equals("Leibniz")) {
-        // Busca números antes de 'd' para Leibniz
-        Matcher m = Pattern.compile("^(\\d+)?d").matcher(var);
-        if (m.find() && m.group(1) != null) {
-          coeffs.add(Integer.parseInt(m.group(1)));
-        } else {
-          coeffs.add(1); // Si no hay coeficiente explícito, es 1
-        }
-      } else if (expressionData.getNotation().equals("Lagrange")) {
-        // Busca números antes de 'y' para Lagrange
-        Matcher m = Pattern.compile("^(\\d+)?[a-zA-Z]").matcher(var);
-        if (m.find() && m.group(1) != null) {
-          coeffs.add(Integer.parseInt(m.group(1)));
-        } else {
-          coeffs.add(1); // Si no hay coeficiente explícito, es 1
-        }
-      }
+    // --- Lógica de normalización ---
+    
+    /**
+     * Normaliza la cadena para asegurar que todos los términos de la derivada 
+     * tengan un coeficiente numérico explícito (+1, -1, etc.).
+     */
+    private String normalize(String ecuacion) {
+        // Paso 1: Normalizar notación (ej: d2y/dx2 -> y'')
+        String normalized = normalizeDerivativeNotation(ecuacion); 
+        
+        // Paso 2: Asegurar coeficientes '1' explícitos.
+        // Captura: Signo (+ o -) seguido de una derivada o 'y' que NO tiene un número delante.
+        // Normalizar: [+-]y... -> [+-]1y...
+        String derivTerms = "(y'''|y''|y'|y\\^\\(\\d+\\)|y)";
+        normalized = normalized.replaceAll("([+-])(?!\\s*\\d|\\s*\\.)\\s*" + derivTerms, "$11$2");
+        
+        return normalized;
     }
     
-    return coeffs.toArray(new Integer[0]);
-  }
+    /**
+     * Implementación del método abstracto parse.
+     */
+    @Override
+    public ExpressionData parse(String rawEcuacion) {
+        // CRÍTICO: Se crea una nueva instancia limpia de ExpressionData por cada llamada.
+        ExpressionData data = new ExpressionData(); 
 
-  public Boolean isHomogeneous() {
-    int equalIndex = input.indexOf('=');
-    if (equalIndex >= 0) {
-      String rhs = input.substring(equalIndex + 1).trim();
-      if (!rhs.equals("0")) {
-        return false;
-      } else {
-        return true;
-      }
+        // 1. Separar la ecuación en lado izquierdo (EDO) y lado derecho (g(x))
+        String[] parts = rawEcuacion.toLowerCase().split("=");
+        String edoPart = parts[0];
+        String gxPart = parts.length > 1 ? parts[1].trim() : "0";
+        
+        // --- LIMPIEZA CRÍTICA DE SIGNOS Y ESPACIOS ---
+        edoPart = edoPart.replaceAll("\\s", ""); 
+        // Convertir restas a sumas de negativos (ej: y''-4y -> y''+-4y)
+        edoPart = edoPart.replaceAll("-", "+-"); 
+        
+        // Limpiar el inicio de la cadena si hay un doble signo (ej: +-)
+        if (edoPart.startsWith("+-")) {
+            edoPart = edoPart.substring(2); 
+        }
+        
+        // Asegura que el primer término siempre tenga signo para el REGEX (ej: y'' -> +y'')
+        if (!edoPart.startsWith("+") && !edoPart.startsWith("-")) {
+            edoPart = "+" + edoPart; 
+        }
+        
+        String normalizedEdo = normalize(edoPart);
+        
+        Map<Integer, Double> coeffMap = new HashMap<>(); 
+        int maxOrder = 0;
+        
+        // 2. Extraer coeficientes del lado izquierdo (EDO)
+        Matcher matcher = TERM_PATTERN.matcher(normalizedEdo);
+        
+        while (matcher.find()) {
+            String coeffStr = matcher.group(1).trim();
+            String derivativeStr = matcher.group(2); 
+            
+            // Determinar el orden
+            int order = 0;
+            if (derivativeStr.contains("'''")) { order = 3;
+            } else if (derivativeStr.contains("''")) { order = 2;
+            } else if (derivativeStr.contains("'")) { order = 1;
+            } else if (derivativeStr.matches("y\\^\\((\\d+)\\)")) {
+                 // Capturar el orden de la notación y^(n)
+                 Pattern p = Pattern.compile("y\\^\\((\\d+)\\)");
+                 Matcher m = p.matcher(derivativeStr);
+                 if (m.find()) {
+                     order = Integer.parseInt(m.group(1));
+                 }
+            } else if (derivativeStr.equals("y")) { order = 0;
+            }
+            maxOrder = Math.max(maxOrder, order);
+            
+            double coeff; 
+            try {
+                // El String coeffStr ya tiene el signo y el valor (ej: "+1", "-4.5").
+                coeff = Double.parseDouble(coeffStr);
+            } catch (NumberFormatException e) {
+                // Esto solo debería ocurrir si la normalización falló por completo.
+                coeff = 0.0; 
+            }
+            
+            // Sumar coeficientes para derivadas del mismo orden
+            coeffMap.put(order, coeffMap.getOrDefault(order, 0.0) + coeff);
+        }
+
+        // 3. Crear el array final de coeficientes (an, an-1, ..., a0)
+        Double[] finalCoeffs = new Double[maxOrder + 1]; 
+        // Llenar el array en orden decreciente (an, an-1, ..., a0)
+        for (int i = 0; i <= maxOrder; i++) {
+            finalCoeffs[maxOrder - i] = coeffMap.getOrDefault(i, 0.0); 
+        }
+
+        // 4. Llenar ExpressionData
+        data.setCoefficients(finalCoeffs); 
+        data.setOrder(maxOrder);
+        data.setIsHomogeneous(gxPart.trim().equals("0"));
+        
+        Map<String, String> independentTerm = new HashMap<>();
+        independentTerm.put("g(x)", gxPart.trim());
+        data.setIndependentTerm(independentTerm);
+        
+        return data;
     }
-    // Por simplicidad, retornamos false aquí
-    return false;
-  }
-
-  public ExpressionData parse(String input) {
-    this.input = input;
-
-    // Normalizar entrada (eliminar espacios) para facilitar el matching
-    String cleaned = input.replaceAll("\\s+", "");
-
-    //identifica la notacion, variables y orden.
-    if (cleaned.matches(leibnizRegex)) {
-      expressionData.setNotation("Leibniz");
-      // Para extraer términos individuales usamos un patrón más específico
-      variables = findAll("\\d*d\\d*[a-zA-Z]/d[a-zA-Z]|\\d*[a-zA-Z](?!['/])", cleaned);
-    } else if (cleaned.matches(lagrangeRegex)) {
-      // Para buscar términos individuales usamos un patrón más específico
-      variables = findAll("\\d*[a-zA-Z](?:'*|\\(\\d+\\))", cleaned);
-      expressionData.setNotation("Lagrange");
-    } else {
-      throw new IllegalArgumentException("Notación de ecuación diferencial no reconocida.");
-    }
-
-    // Implementar el análisis léxico y sintáctico aquí
-    // Retornar un objeto ExpressionData con los datos extraídos
-    expressionData.setExpression(this.input);
-    expressionData.setOrder(getOrder());
-    expressionData.setIsHomogeneous(isHomogeneous());
-    expressionData.setVariables(this.variables);
-    expressionData.setCoefficients(getCoefficients());
-    return expressionData;
-  }
-
-  public static List<String> findAll(String regex, String text) {
-    Pattern p = Pattern.compile(regex);
-    Matcher m = p.matcher(text);
-    List<String> matches = new ArrayList<>();
-    while (m.find()) matches.add(m.group());
-    return matches;
-  }
-
-
 }

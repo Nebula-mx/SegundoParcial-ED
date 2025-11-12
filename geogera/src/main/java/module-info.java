@@ -2,6 +2,7 @@ module com.ecuaciones.diferenciales {
     requires javafx.controls;
     requires javafx.fxml;
     requires javafx.graphics;
+    
 
     opens com.ecuaciones.diferenciales.model to javafx.fxml;
     
