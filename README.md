@@ -38,12 +38,12 @@ Con eso se puede acceder a toda la informacion sobre la ecuacion que se este usa
 - `polynomial_solver` - Resolución de polinomios
 - `roots_analyzer` - Análisis de raíces
 
-## Coeficientes Indeterminados
+## Coeficientes Indeterminados (Isma)
 
-- ❌ Identificar tipo de función no homogénea
-- ❌ Proponer forma de solución particular
-- ❌ Determinar coeficientes
-- ❌ Manejar casos de duplicación
+- 🏗 Identificar tipo de función no homogénea
+- 🏗 Proponer forma de solución particular
+- 🏗 Determinar coeficientes
+- 🏗 Manejar casos de duplicación
 
 ### archivos
 
@@ -51,11 +51,11 @@ Con eso se puede acceder a toda la informacion sobre la ecuacion que se este usa
 - `function_analyzer` - Análisis de funciones
 - `particular_solver` - Solución particular
 
-## Variación de Parámetros
+## Variación de Parámetros (Isma)
 
-- ❌ Calcular Wronskiano
-- ❌ Calcular funciones u₁(x) y u₂(x)
-- ❌ Construir solución particular
+- 🏗 Calcular Wronskiano
+- 🏗 Calcular funciones u₁(x) y u₂(x)
+- 🏗 Construir solución particular
 - ❌ Aplicar condiciones iniciales
 
 ## archivos

@@ -3,6 +3,7 @@ out/
 
 # Maven specific
 target/
+out/
 *.jar
 *.war
 *.ear
