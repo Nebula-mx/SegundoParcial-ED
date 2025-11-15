@@ -18,6 +18,7 @@ public class ExpressionData {
     private List<String> initialConditions;     // Condiciones iniciales
     private String variable;                    // Variable independiente (x, t, etc.)
     private String description;                 // Descripción opcional
+    private String method;                      // Método: "UC" (Coeficientes Indeterminados) o "VP" (Variación de Parámetros)
     
     // --- CONSTRUCTORES ---
     
@@ -64,6 +65,14 @@ public class ExpressionData {
     
     public void setDescription(String description) {
         this.description = description;
+    }
+    
+    public String getMethod() {
+        return method != null ? method : "UC";  // Default a UC
+    }
+    
+    public void setMethod(String method) {
+        this.method = method;
     }
     
     // --- VALIDACIÓN ---

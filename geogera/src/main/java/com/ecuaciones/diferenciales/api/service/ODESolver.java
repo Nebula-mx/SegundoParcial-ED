@@ -8,8 +8,10 @@ import com.ecuaciones.diferenciales.model.solver.homogeneous.HomogeneousSolver;
 import com.ecuaciones.diferenciales.model.solver.homogeneous.PolynomialSolver;
 import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.UndeterminedCoeff;
 import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.UndeterminedCoeffResolver;
+import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.VariationOfParametersSolverV2;
 import com.ecuaciones.diferenciales.model.roots.Root;
 import com.ecuaciones.diferenciales.model.EcuationParser;
+import com.ecuaciones.diferenciales.model.variation.WronskianCalculator;
 import java.util.*;
 import java.util.regex.*;
 
@@ -130,66 +132,47 @@ public class ODESolver {
             if (!odeType.equals("Homogénea")) {
                 try {
                     String rightSide = equation.split("=")[1].trim();
+                    String method = input.getMethod().toUpperCase();
                     
-                    // Generar forma particular usando Coeficientes Indeterminados
-                    UndeterminedCoeff ucSolver = new UndeterminedCoeff(roots);
-                    String ypForm = ucSolver.getParticularSolutionForm(rightSide);
-                    
-                    stepBuilder.addCustomStep(
-                        Step.StepType.PARTICULAR_SOLUTION,
-                        "Forma de solución particular",
-                        "Se propone una forma según el término no-homogéneo",
-                        Collections.singletonList("y_p = " + ypForm)
-                    );
-                    
-                    // Resolver coeficientes del sistema lineal
-                    // Primero convertir el DTO al modelo usando EcuationParser
-                    EcuationParser parser = new EcuationParser();
-                    com.ecuaciones.diferenciales.model.templates.ExpressionData modelData = 
-                        parser.parse(equation);
-                    
-                    UndeterminedCoeffResolver ucResolver = new UndeterminedCoeffResolver(modelData, ucSolver);
-                    Map<String, Double> solvedCoeffs = null;
-                    String particularSolution = null;
-                    
-                    try {
-                        solvedCoeffs = ucResolver.resolveCoefficients();
-                        particularSolution = ucSolver.generateParticularSolution(ypForm, solvedCoeffs);
-                    } catch (ArithmeticException singularError) {
-                        // Si el sistema es singular (resonancia), la solución particular debe incluir el factor x
-                        System.out.println("⚠️ Sistema singular detectado (posible RESONANCIA).");
-                        System.out.println("   La forma con factor x ya fue propuesta automáticamente.");
-                        System.out.println("   La solución particular es: y_p = " + ypForm);
-                        
-                        // Usar la forma propuesta directamente (que ya incluye el factor x por resonancia)
-                        particularSolution = ypForm;
-                        
-                        stepBuilder.addCustomStep(
-                            Step.StepType.PARTICULAR_SOLUTION,
-                            "Solución particular con resonancia",
-                            "Se detectó resonancia. La forma propuesta ya incluye el factor x",
-                            Collections.singletonList("y_p(x) = " + particularSolution)
+                    // Elegir método según input
+                    if ("VP".equals(method)) {
+                        // 🔧 USAR VARIACIÓN DE PARÁMETROS V2
+                        try {
+                            String particularSolution = solveWithVariationOfParameters(
+                                roots, homogeneousSolution, rightSide, order, equation
+                            );
+                            
+                            stepBuilder.addCustomStep(
+                                Step.StepType.PARTICULAR_SOLUTION,
+                                "Método: Variación de Parámetros",
+                                "Usando VP v2 con integración completa",
+                                Collections.singletonList("y_p(x) = " + particularSolution)
+                            );
+                            
+                            // Combinar: y_general = y_h + y_p
+                            generalSolution = homogeneousSolution + " + " + particularSolution;
+                            
+                            stepBuilder.addCustomStep(
+                                Step.StepType.GENERAL_SOLUTION,
+                                "Solución general",
+                                "Combinación de solución homogénea y particular (VP)",
+                                Collections.singletonList("y(x) = " + generalSolution)
+                            );
+                        } catch (Exception vpError) {
+                            System.err.println("⚠️ Error con VP: " + vpError.getMessage());
+                            System.out.println("   Fallback a Coeficientes Indeterminados");
+                            
+                            // Fallback a UC
+                            generalSolution = solveWithUndeterminedCoefficients(
+                                roots, homogeneousSolution, rightSide, equation
+                            );
+                        }
+                    } else {
+                        // 📊 USAR COEFICIENTES INDETERMINADOS (default)
+                        generalSolution = solveWithUndeterminedCoefficients(
+                            roots, homogeneousSolution, rightSide, equation
                         );
                     }
-                    
-                    // Combinar: y_general = y_h + y_p
-                    generalSolution = homogeneousSolution + " + " + particularSolution;
-                    
-                    if (solvedCoeffs != null) {
-                        stepBuilder.addCustomStep(
-                            Step.StepType.PARTICULAR_SOLUTION,
-                            "Solución particular",
-                            "Después de resolver los coeficientes indeterminados",
-                            Collections.singletonList("y_p(x) = " + particularSolution)
-                        );
-                    }
-                    
-                    stepBuilder.addCustomStep(
-                        Step.StepType.GENERAL_SOLUTION,
-                        "Solución general",
-                        "Combinación de solución homogénea y particular",
-                        Collections.singletonList("y(x) = " + generalSolution)
-                    );
                 } catch (Exception e) {
                     System.err.println("⚠️ Error resolviendo no-homogénea: " + e.getMessage());
                     stepBuilder.addCustomStep(
@@ -362,6 +345,115 @@ public class ODESolver {
         }
         
         return 0.0;
+    }
+    
+    /**
+     * 🔧 Resuelve usando VARIACIÓN DE PARÁMETROS V2
+     */
+    private String solveWithVariationOfParameters(
+            List<Root> roots, String yHomogeneous, String rightSide, int order, String fullEquation) 
+            throws Exception {
+        
+        // Generar funciones base desde las raíces
+        List<String> yFunctions = new ArrayList<>();
+        for (Root root : roots) {
+            if (Math.abs(root.getImaginary()) < 1e-9) {
+                // Raíz real
+                double r = root.getReal();
+                yFunctions.add("e^(" + r + "*x)");
+            } else {
+                // Raíz compleja
+                double a = root.getReal();
+                double b = root.getImaginary();
+                yFunctions.add("e^(" + a + "*x)*cos(" + b + "*x)");
+                yFunctions.add("e^(" + a + "*x)*sin(" + b + "*x)");
+            }
+        }
+        
+        // Crear Wronskian Calculator
+        WronskianCalculator wc = new WronskianCalculator(roots);
+        
+        // Extraer coeficiente principal
+        double leadingCoeff = 1.0;
+        try {
+            // y'' + 3*y' + 2*y = ... → leading coeff = 1
+            // 2*y'' + ... → leading coeff = 2
+            Pattern p = Pattern.compile("([+-]?\\d*\\.?\\d*)\\s*\\*?\\s*y'{0,2}(?!\\w)");
+            Matcher m = p.matcher(fullEquation.split("=")[0]);
+            if (m.find()) {
+                String coeff = m.group(1).replaceAll("\\s", "");
+                if (!coeff.isEmpty() && !coeff.equals("+")) {
+                    leadingCoeff = Double.parseDouble(coeff.equals("-") ? "-1" : coeff);
+                }
+            }
+        } catch (Exception e) {
+            // Default a 1
+        }
+        
+        // Crear solver VP v2
+        VariationOfParametersSolverV2 vpSolver = new VariationOfParametersSolverV2(
+            yFunctions, rightSide, leadingCoeff, order, wc
+        );
+        
+        // Resolver y retornar la solución particular
+        return vpSolver.getYpFormula();
+    }
+    
+    /**
+     * 📊 Resuelve usando COEFICIENTES INDETERMINADOS
+     */
+    private String solveWithUndeterminedCoefficients(
+            List<Root> roots, String yHomogeneous, String rightSide, String fullEquation) 
+            throws Exception {
+        
+        // Generar forma particular usando Coeficientes Indeterminados
+        UndeterminedCoeff ucSolver = new UndeterminedCoeff(roots);
+        String ypForm = ucSolver.getParticularSolutionForm(rightSide);
+        
+        stepBuilder.addCustomStep(
+            Step.StepType.PARTICULAR_SOLUTION,
+            "Forma de solución particular",
+            "Se propone una forma según el término no-homogéneo",
+            Collections.singletonList("y_p = " + ypForm)
+        );
+        
+        // Resolver coeficientes del sistema lineal
+        EcuationParser parser = new EcuationParser();
+        com.ecuaciones.diferenciales.model.templates.ExpressionData modelData = 
+            parser.parse(fullEquation);
+        
+        UndeterminedCoeffResolver ucResolver = new UndeterminedCoeffResolver(modelData, ucSolver);
+        Map<String, Double> solvedCoeffs = null;
+        String particularSolution = null;
+        
+        try {
+            solvedCoeffs = ucResolver.resolveCoefficients();
+            particularSolution = ucSolver.generateParticularSolution(ypForm, solvedCoeffs);
+        } catch (ArithmeticException singularError) {
+            // Si el sistema es singular (resonancia)
+            System.out.println("⚠️ Sistema singular detectado (posible RESONANCIA).");
+            System.out.println("   La forma con factor x ya fue propuesta automáticamente.");
+            
+            particularSolution = ypForm;
+            
+            stepBuilder.addCustomStep(
+                Step.StepType.PARTICULAR_SOLUTION,
+                "Solución particular con resonancia",
+                "Se detectó resonancia. La forma propuesta ya incluye el factor x",
+                Collections.singletonList("y_p(x) = " + particularSolution)
+            );
+        }
+        
+        if (solvedCoeffs != null) {
+            stepBuilder.addCustomStep(
+                Step.StepType.PARTICULAR_SOLUTION,
+                "Solución particular",
+                "Después de resolver los coeficientes indeterminados",
+                Collections.singletonList("y_p(x) = " + particularSolution)
+            );
+        }
+        
+        return yHomogeneous + " + " + particularSolution;
     }
     
     /**
