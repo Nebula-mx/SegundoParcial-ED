@@ -210,26 +210,36 @@ public class Main{
                 String final_h = solution_h.trim();
                 String solution_final = final_h;
                 
-                // Solo concatenar si y_p es válido
-                if (!final_p.isEmpty() && !final_p.startsWith("ERROR") && !final_p.contains("Fórmulas")) {
-                    
-                    if (!final_p.matches("^[\\+\\-]?\\s*0(\\.0+)?$")) { 
-                        
-                        String clean_p = final_p.replaceAll("^\\+", "").trim();
-
-                        if (clean_p.startsWith("-")) {
-                            solution_final += clean_p;
-                        } else {
-                            solution_final += " + " + clean_p;
-                        }
-                    }
-                }
-                
                 System.out.println("\n╔════════════════════════════════════════════════════════════╗");
                 System.out.println("║              SOLUCIÓN GENERAL FINAL                        ║");
                 System.out.println("╚════════════════════════════════════════════════════════════╝");
                 System.out.println("   y(x) = y_h(x) + y_p(x)");
-                System.out.println("   y(x) = " + solution_final.trim());
+                
+                // --- Concatenar la solución particular ---
+                if ("VP".equals(metodoSeleccionado)) {
+                    // Para VP: mostrar ambas componentes claramente
+                    System.out.println("\n   📌 Solución Homogénea:");
+                    System.out.println("      y_h(x) = " + final_h);
+                    System.out.println("\n   📌 Solución Particular (Variación de Parámetros):");
+                    System.out.println("      y_p(x) = " + final_p);
+                    System.out.println("\n   📌 Solución General Final:");
+                    System.out.println("      y(x) = y_h(x) + y_p(x)");
+                    System.out.println("      y(x) = (" + final_h + ") + (" + final_p + ")");
+                    solution_final = "(" + final_h + ") + (" + final_p + ")";
+                } else {
+                    // Para UC: lógica original
+                    if (!final_p.isEmpty() && !final_p.startsWith("ERROR") && !final_p.contains("Fórmulas")) {
+                        if (!final_p.matches("^[\\+\\-]?\\s*0(\\.0+)?$")) { 
+                            String clean_p = final_p.replaceAll("^\\+", "").trim();
+                            if (clean_p.startsWith("-")) {
+                                solution_final += clean_p;
+                            } else {
+                                solution_final += " + " + clean_p;
+                            }
+                        }
+                    }
+                    System.out.println("   y(x) = " + solution_final.trim());
+                }
                 
                 // Si hay condiciones iniciales, mostrar mensaje
                 if (!condicionesIniciales.isEmpty()) {
