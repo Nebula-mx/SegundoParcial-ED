@@ -149,6 +149,7 @@ public class Main{
                     // --- Método 1: Coeficientes Indeterminados (UC) ---
                     System.out.println("\n   📌 Usando Coeficientes Indeterminados (UC)...");
                     
+                    boolean ucFailed = false;
                     try {
                         // 1. Generar la forma (y el ucSolver la almacena)
                         UndeterminedCoeff ucSolver = new UndeterminedCoeff(finalRoots);
@@ -171,11 +172,36 @@ public class Main{
                         
                     } catch (ArithmeticException e) {
                          System.err.println("   ⚠️ El sistema es singular (probablemente resonancia).");
-                         System.err.println("   📝 Detalle: " + e.getMessage());
-                         solution_p = "ERROR: Sistema singular";
+                         System.err.println("   📝 Auto-switcheando a VP...");
+                         ucFailed = true;
                     } catch (Exception e) {
-                         System.err.println("   ❌ Error inesperado: " + e.getMessage());
-                         solution_p = "ERROR: Fallo en UC";
+                         System.err.println("   ⚠️ Error en UC: " + e.getMessage());
+                         System.err.println("   📝 Auto-switcheando a VP...");
+                         ucFailed = true;
+                    }
+                    
+                    // Si UC falló, auto-switchear a VP
+                    if (ucFailed) {
+                        metodoSeleccionado = "VP";  // Cambiar a VP
+                        System.out.println("   📌 Usando Variación de Parámetros (VP - fallback)...\n");
+                        
+                        if (order >= 2) {
+                            try {
+                                WronskianCalculator wc = new WronskianCalculator(finalRoots);
+                                List<String> yFunctions = wc.generateFundamentalSet(); 
+                                double leadingCoeff = coeffsArray[0]; 
+                                
+                                VariationOfParametersSolverV2 vpSolver = new VariationOfParametersSolverV2(yFunctions, g_x, leadingCoeff, order, wc);
+                                String vpSteps = vpSolver.formulateVdpSolution();
+                                
+                                System.out.println(vpSteps);
+                                String ypFormula = vpSolver.getYpFormula();
+                                solution_p = ypFormula;
+                            } catch (Exception ex) {
+                                System.err.println("   ❌ Error también en VP: " + ex.getMessage());
+                                solution_p = "ERROR: Falló UC y VP";
+                            }
+                        }
                     }
 
                 } else if ("VP".equals(metodoSeleccionado)) {
@@ -231,10 +257,12 @@ public class Main{
                     
                     if (!final_p.isEmpty() && !final_p.startsWith("ERROR") && !final_p.startsWith("VP:")) {
                         System.out.println("\n   📌 Solución Particular (Variación de Parámetros):");
-                        System.out.println("      y_p(x) = " + final_p);
+                        // Remover duplicados "y_p(x) = " si existen
+                        String cleanedYp = final_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
+                        System.out.println("      y_p(x) = " + cleanedYp);
                         System.out.println("\n   📌 Solución General Final:");
-                        System.out.println("      y(x) = (" + final_h + ") + (" + final_p + ")");
-                        solution_final = "(" + final_h + ") + (" + final_p + ")";
+                        System.out.println("      y(x) = (" + final_h + ") + (" + cleanedYp + ")");
+                        solution_final = "(" + final_h + ") + (" + cleanedYp + ")";
                     } else {
                         System.out.println("\n   ⚠️ Solución Particular: " + final_p);
                         System.out.println("      y(x) = " + final_h);

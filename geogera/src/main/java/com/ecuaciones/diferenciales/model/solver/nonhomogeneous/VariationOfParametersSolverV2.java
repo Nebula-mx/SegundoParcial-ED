@@ -131,23 +131,11 @@ public class VariationOfParametersSolverV2 {
      */
     private String integrateWithSymja(String expr) {
         try {
-            // Reemplazar notaciones para Symja
-            String symjaExpr = expr
-                .replace("sin(x)", "Sin(x)")
-                .replace("cos(x)", "Cos(x)")
-                .replace("tan(x)", "Tan(x)")
-                .replace("e^x", "E^x")
-                .replace("e^(x)", "E^x");
-            
-            System.out.println("  [DEBUG] Intentando integrar: " + symjaExpr);
-            
             // Nota: Symja Integrate requiere parseExpression()
             // Por ahora, dejamos como fallback a tabla
-            System.out.println("  [DEBUG] Symja integration skipped in this version");
             return null;
             
         } catch (Exception e) {
-            System.out.println("  [DEBUG] Symja falló, intentando tabla...");
             return null;  // Intentar tabla
         }
     }
@@ -269,7 +257,7 @@ public class VariationOfParametersSolverV2 {
     }
 
     /**
-     * 📄 Retornar solo la fórmula compacta de y_p
+     * 📄 Retornar solo la fórmula compacta de y_p (sin el prefijo "y_p(x) =")
      */
     public String getYpFormula() {
         if (order < 2) {
@@ -294,6 +282,6 @@ public class VariationOfParametersSolverV2 {
             ypTerms.add("(" + uiFormula + ") * (" + yFunctions.get(i) + ")");
         }
 
-        return "y_p(x) = " + String.join(" + ", ypTerms);
+        return String.join(" + ", ypTerms);
     }
 }
