@@ -23,36 +23,62 @@ public class Main{
         EcuationParser parser = new EcuationParser(); 
         ExpressionData data = null; 
         
+        // Parsear argumentos de línea de comandos
+        String ecuacion = null;
+        String metodoSeleccionado = "UC"; // Por defecto UC
+        List<String> condicionesIniciales = new ArrayList<>();
+        
+        // Si hay argumentos, usarlos; si no, solicitar interactivamente
+        if (args.length > 0) {
+            ecuacion = args[0].toLowerCase();
+            if (args.length > 1) {
+                metodoSeleccionado = args[1].toUpperCase();
+            }
+            // Condiciones iniciales: args[2], args[3], ...
+            for (int i = 2; i < args.length; i++) {
+                condicionesIniciales.add(args[i]);
+            }
+        }
+        
         try (Scanner scanner = new Scanner(System.in)) {
             System.out.println("╔════════════════════════════════════════════════════════════╗");
             System.out.println("║     RESOLVEDOR INTERACTIVO DE ECUACIONES DIFERENCIALES     ║");
             System.out.println("╚════════════════════════════════════════════════════════════╝");
             
-            System.out.println("\n📝 INGRESO DE DATOS:");
-            System.out.print("   Ingresa una ecuación (Ej: y'' + 4y = 8cos(2x)): ");
-            String ecuacion = scanner.nextLine().toLowerCase();
-            
-            // Opción de condiciones iniciales
-            System.out.print("\n❓ ¿Deseas agregar condiciones iniciales? (s/n): ");
-            String respuestCI = scanner.nextLine().trim().toLowerCase();
-            
-            List<String> condicionesIniciales = new ArrayList<>();
-            if ("s".equals(respuestCI) || "si".equals(respuestCI)) {
-                System.out.println("\n📋 INGRESO DE CONDICIONES INICIALES:");
-                System.out.println("   Formato: y(0)=1, y'(0)=2, etc.");
-                System.out.println("   (Ingresa vacío cuando termines)");
+            // Si no hay argumentos, solicitar interactivamente
+            if (ecuacion == null) {
+                System.out.println("\n📝 INGRESO DE DATOS:");
+                System.out.print("   Ingresa una ecuación (Ej: y'' + 4y = 8cos(2x)): ");
+                ecuacion = scanner.nextLine().toLowerCase();
                 
-                while (true) {
-                    System.out.print("   CI: ");
-                    String ci = scanner.nextLine().trim();
-                    if (ci.isEmpty()) {
-                        break;
-                    }
-                    condicionesIniciales.add(ci);
+                // Opción de método (UC o VP)
+                System.out.print("\n❓ ¿Qué método prefieres? (UC/VP) [default=UC]: ");
+                String metodoInput = scanner.nextLine().trim().toUpperCase();
+                if ("VP".equals(metodoInput)) {
+                    metodoSeleccionado = "VP";
                 }
                 
-                if (!condicionesIniciales.isEmpty()) {
-                    System.out.println("\n✅ Condiciones iniciales ingresadas: " + condicionesIniciales);
+                // Opción de condiciones iniciales
+                System.out.print("\n❓ ¿Deseas agregar condiciones iniciales? (s/n): ");
+                String respuestCI = scanner.nextLine().trim().toLowerCase();
+                
+                if ("s".equals(respuestCI) || "si".equals(respuestCI)) {
+                    System.out.println("\n📋 INGRESO DE CONDICIONES INICIALES:");
+                    System.out.println("   Formato: y(0)=1, y'(0)=2, etc.");
+                    System.out.println("   (Ingresa vacío cuando termines)");
+                    
+                    while (true) {
+                        System.out.print("   CI: ");
+                        String ci = scanner.nextLine().trim();
+                        if (ci.isEmpty()) {
+                            break;
+                        }
+                        condicionesIniciales.add(ci);
+                    }
+                    
+                    if (!condicionesIniciales.isEmpty()) {
+                        System.out.println("\n✅ Condiciones iniciales ingresadas: " + condicionesIniciales);
+                    }
                 }
             }
 
@@ -88,6 +114,8 @@ public class Main{
                 System.out.println("   🔌 Forzamiento: " + g_x);
             }
             
+            System.out.println("\n   📌 Método seleccionado: " + metodoSeleccionado);
+            
             System.out.println("\n╔════════════════════════════════════════════════════════════╗");
             System.out.println("║             PASO 1: SOLUCIÓN HOMOGÉNEA (y_h)              ║");
             System.out.println("╚════════════════════════════════════════════════════════════╝");
@@ -115,13 +143,9 @@ public class Main{
                 System.out.println("╚════════════════════════════════════════════════════════════╝");
                 System.out.println("   🔌 Forzamiento: g(x) = " + g_x);
                 
-                System.out.println("\n   ¿Qué método prefieres?");
-                System.out.println("   ┌─ 1. Coeficientes Indeterminados (Recomendado para polinomios, exponenciales, trigonométricas)");
-                System.out.println("   └─ 2. Variación de Parámetros (Más general pero requiere integración)");
-                System.out.print("   Selecciona (1 o 2): ");
-                String opcion = scanner.nextLine();
-
-                if ("1".equals(opcion)) {
+                System.out.println("\n   ✅ Método: " + metodoSeleccionado);
+                
+                if ("UC".equals(metodoSeleccionado)) {
                     // --- Método 1: Coeficientes Indeterminados (UC) ---
                     System.out.println("\n   📌 Usando Coeficientes Indeterminados (UC)...");
                     
@@ -154,7 +178,7 @@ public class Main{
                          solution_p = "ERROR: Fallo en UC";
                     }
 
-                } else if ("2".equals(opcion)) {
+                } else if ("VP".equals(metodoSeleccionado)) {
                     // --- Método 2: Variación de Parámetros (VP) ---
                     System.out.println("\n   📌 Usando Variación de Parámetros (VP)...");
                     
