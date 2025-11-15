@@ -12,7 +12,7 @@ import com.ecuaciones.diferenciales.model.solver.homogeneous.HomogeneousSolver;
 import com.ecuaciones.diferenciales.model.solver.homogeneous.PolynomialSolver;
 import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.UndeterminedCoeff;
 import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.UndeterminedCoeffResolver;
-import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.VariationOfParametersSolver;
+import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.VariationOfParametersSolverV2;
 import com.ecuaciones.diferenciales.model.templates.ExpressionData;
 import com.ecuaciones.diferenciales.model.variation.WronskianCalculator;
 
@@ -191,7 +191,7 @@ public class Main{
                         
                         double leadingCoeff = coeffsArray[0]; 
                         
-                        VariationOfParametersSolver vpSolver = new VariationOfParametersSolver(yFunctions, g_x, leadingCoeff, order, wc);
+                        VariationOfParametersSolverV2 vpSolver = new VariationOfParametersSolverV2(yFunctions, g_x, leadingCoeff, order, wc);
                         String vpSteps = vpSolver.formulateVdpSolution();
                         
                         System.out.println(vpSteps);
