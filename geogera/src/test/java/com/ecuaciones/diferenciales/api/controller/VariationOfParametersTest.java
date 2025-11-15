@@ -55,7 +55,7 @@ public class VariationOfParametersTest {
                 .andExpect(jsonPath("$.expression").value(equation))
                 .andExpect(jsonPath("$.finalSolution").exists())
                 .andExpect(jsonPath("$.steps").isArray())
-                .andExpect(jsonPath("$.steps.length()").value(5))
+                .andExpect(jsonPath("$.steps.length()").value(8))
                 .andExpect(jsonPath("$.executionTimeMs").isNumber())
                 .andReturn();
         

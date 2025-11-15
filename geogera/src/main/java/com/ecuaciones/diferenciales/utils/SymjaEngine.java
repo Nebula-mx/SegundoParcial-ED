@@ -24,6 +24,10 @@ public class SymjaEngine {
         // LUEGO hacer otros reemplazos.
         String result = mathString;
         
+        // PASO 0: Normalizar E^x a e^(x) antes de cualquier conversión
+        // Esto maneja el caso donde Symja retorna E^x y lo reprocesamos
+        result = result.replaceAll("E\\^([^\\s\\+\\-\\*\\/\\)\\]]+)", "e^($1)");
+        
         // Paso 1: Reemplazar funciones trigonométricas e exponenciales (estos SÍ necesitan corchetes)
         // Usar un approach que matchee los paréntesis correctamente
         result = result.replaceAll("sin\\(", "Sin[");

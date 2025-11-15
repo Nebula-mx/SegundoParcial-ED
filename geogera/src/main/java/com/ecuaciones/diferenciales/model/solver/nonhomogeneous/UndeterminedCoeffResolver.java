@@ -44,13 +44,34 @@ public class UndeterminedCoeffResolver {
     // ----------------------- FUNCIÓN DE EXTRACCIÓN CENTRAL (ROBUSTA) --------------------------
     
     /**
+     * Normaliza expresiones exponenciales para comparación consistente.
+     * e^(x), E^x, Exp(x), Exp[x] se tratan como lo mismo
+     */
+    private String normalizeExponentials(String expr) {
+        // Primero, convertir todas las notaciones a e^(...)
+        expr = expr.replaceAll("[Ee]\\^\\(([^)]+)\\)", "e^($1)");
+        expr = expr.replaceAll("[Ee]\\^([^\\(\\+\\-\\*\\/\\s]+)", "e^($1)");
+        expr = expr.replaceAll("Exp\\[([^\\]]+)\\]", "e^($1)");
+        expr = expr.replaceAll("Exp\\(([^\\)]+)\\)", "e^($1)");
+        return expr;
+    }
+    
+    /**
      * Función auxiliar robusta que aísla y parsea el coeficiente numérico de un término funcional específico.
      */
     private double getRobustExtractedCoeff(String expression, String functionalTerm) {
         
-        // Simplificar ambas cadenas para una comparación consistente
-        String normalizedExpr = SymbolicDifferentiator.simplify(expression); 
-        String normalizedTerm = SymbolicDifferentiator.simplify(functionalTerm);
+        // Normalizar exponenciales PRIMERO
+        String normalizedExpr = normalizeExponentials(expression);
+        String normalizedTerm = normalizeExponentials(functionalTerm);
+        
+        // LUEGO simplificar
+        normalizedExpr = SymbolicDifferentiator.simplify(normalizedExpr); 
+        normalizedTerm = SymbolicDifferentiator.simplify(normalizedTerm);
+        
+        // Normalizar exponenciales de nuevo después de simplificar (Symja puede cambiar el formato)
+        normalizedExpr = normalizeExponentials(normalizedExpr);
+        normalizedTerm = normalizeExponentials(normalizedTerm);
         
         if (normalizedExpr.equals("0")) return 0.0;
         
@@ -97,8 +118,25 @@ public class UndeterminedCoeffResolver {
                     try {
                         currentCoeff = Double.parseDouble(coeffStr);
                     } catch (NumberFormatException e) {
-                        // Si queda "x", "cos", etc., no es una coincidencia válida
-                        currentCoeff = 0.0; 
+                        // ⚠️ MEJORA: Si el coeficiente contiene variables, intentar simplificar
+                        try {
+                            String simplified = SymbolicDifferentiator.simplify(coeffStr);
+                            if (!simplified.equals(coeffStr)) {
+                                // Si la simplificación cambió algo, intentar parsear de nuevo
+                                try {
+                                    currentCoeff = Double.parseDouble(simplified);
+                                } catch (NumberFormatException e3) {
+                                    // Aún no es un número puro
+                                    currentCoeff = 0.0;
+                                }
+                            } else {
+                                // La simplificación no ayudó
+                                currentCoeff = 0.0;
+                            }
+                        } catch (Exception e2) {
+                            // Si la simplificación falla, retornar 0
+                            currentCoeff = 0.0;
+                        }
                     }
                 }
                 
@@ -112,7 +150,13 @@ public class UndeterminedCoeffResolver {
         
         return accumulatedCoeff;
     }
+
+    // ----------------------- MÉTODO DE VALIDACIÓN --------------------------
     
+    /**
+     * Valida que la matriz A|b esté bien construida.
+     * Detecta problemas como filas/columnas de todos ceros que causarían singularidad.
+     */
     // ----------------------- MÉTODO PRINCIPAL DE RESOLUCIÓN --------------------------
 
     public Map<String, Double> resolveCoefficients() {
@@ -146,11 +190,15 @@ public class UndeterminedCoeffResolver {
                 String ypTerm_j = ypStarTerms.get(j); // Ej: x*cos(2x)
                 double totalCoefficientOfTerm_base = 0.0;
                 
+                
                 // Aplicar el operador L[ypTerm_j]
                 for (int k = 0; k <= order; k++) { 
                     double a_k = coefficients[order - k]; 
                     
                     String derived_tj = SymbolicDifferentiator.calculateDerivative(ypTerm_j, k);
+                    
+                    // NO simplificar la derivada - mantener el formato original
+                    // String expanded_tj = SymbolicDifferentiator.simplify(derived_tj);
                     
                     // Extraer el coeficiente del término base (FILA i) de la derivada (COLUMNA j)
                     double functionalCoeff = getRobustExtractedCoeff(derived_tj, baseTerm_i);
@@ -165,23 +213,6 @@ public class UndeterminedCoeffResolver {
             // Extraer el coeficiente del término base (FILA i) de g(x)
             vectorB[i] = getRobustExtractedCoeff(gX, baseTerm_i);
         }
-
-        // **********************************************
-        // ******* DEPURACIÓN: IMPRIMIR MATRIZ A Y VECTOR B *******
-        // **********************************************
-        System.out.println("\n--- DEBUG: Sistema Lineal A|b ---");
-        System.out.println("Coeficientes (Columnas/Nombres): " + coeffNames);
-        System.out.println("Términos Yp* (Columnas): " + ypStarTerms); 
-        System.out.println("Términos Base (Filas): " + baseUCTerms); 
-        for (int i = 0; i < numRows; i++) {
-            System.out.printf("Fila %d (Termino: %s) [", i, baseUCTerms.get(i));
-            for (int j = 0; j < numCols; j++) {
-                System.out.printf("%.4f\t", matrixA[i][j]);
-            }
-            System.out.printf("] | b = %.4f\n", vectorB[i]);
-        }
-        System.out.println("---------------------------------");
-        // **********************************************
 
         // 4. Resolver el sistema lineal
         List<List<Double>> listA = new ArrayList<>();

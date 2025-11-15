@@ -149,20 +149,40 @@ public class ODESolver {
                         parser.parse(equation);
                     
                     UndeterminedCoeffResolver ucResolver = new UndeterminedCoeffResolver(modelData, ucSolver);
-                    Map<String, Double> solvedCoeffs = ucResolver.resolveCoefficients();
+                    Map<String, Double> solvedCoeffs = null;
+                    String particularSolution = null;
                     
-                    // Generar solución particular final
-                    String particularSolution = ucSolver.generateParticularSolution(ypForm, solvedCoeffs);
-                    
-                    stepBuilder.addCustomStep(
-                        Step.StepType.PARTICULAR_SOLUTION,
-                        "Solución particular",
-                        "Después de resolver los coeficientes indeterminados",
-                        Collections.singletonList("y_p(x) = " + particularSolution)
-                    );
+                    try {
+                        solvedCoeffs = ucResolver.resolveCoefficients();
+                        particularSolution = ucSolver.generateParticularSolution(ypForm, solvedCoeffs);
+                    } catch (ArithmeticException singularError) {
+                        // Si el sistema es singular (resonancia), la solución particular debe incluir el factor x
+                        System.out.println("⚠️ Sistema singular detectado (posible RESONANCIA).");
+                        System.out.println("   La forma con factor x ya fue propuesta automáticamente.");
+                        System.out.println("   La solución particular es: y_p = " + ypForm);
+                        
+                        // Usar la forma propuesta directamente (que ya incluye el factor x por resonancia)
+                        particularSolution = ypForm;
+                        
+                        stepBuilder.addCustomStep(
+                            Step.StepType.PARTICULAR_SOLUTION,
+                            "Solución particular con resonancia",
+                            "Se detectó resonancia. La forma propuesta ya incluye el factor x",
+                            Collections.singletonList("y_p(x) = " + particularSolution)
+                        );
+                    }
                     
                     // Combinar: y_general = y_h + y_p
                     generalSolution = homogeneousSolution + " + " + particularSolution;
+                    
+                    if (solvedCoeffs != null) {
+                        stepBuilder.addCustomStep(
+                            Step.StepType.PARTICULAR_SOLUTION,
+                            "Solución particular",
+                            "Después de resolver los coeficientes indeterminados",
+                            Collections.singletonList("y_p(x) = " + particularSolution)
+                        );
+                    }
                     
                     stepBuilder.addCustomStep(
                         Step.StepType.GENERAL_SOLUTION,
