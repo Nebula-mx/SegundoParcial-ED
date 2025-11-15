@@ -6,5 +6,6 @@
       "command": "-f geogera/pom.xml compile exec:java",
       "debug": false
     }
-  ]
+  ],
+  "java.compile.nullAnalysis.mode": "automatic"
 }

@@ -2,8 +2,8 @@ package com.ecuaciones.diferenciales;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Scanner;
 import java.util.Map;
+import java.util.Scanner;
 
 import com.ecuaciones.diferenciales.model.EcuationParser;
 import com.ecuaciones.diferenciales.model.roots.Root;
@@ -18,7 +18,6 @@ import com.ecuaciones.diferenciales.model.variation.WronskianCalculator;
 public class Main{
     
     public static void main(String[] args) {
-        
         EcuationParser parser = new EcuationParser(); 
         ExpressionData data = null; 
         

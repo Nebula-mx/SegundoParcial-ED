@@ -2,7 +2,8 @@ module com.ecuaciones.diferenciales {
     requires javafx.controls;
     requires javafx.fxml;
     requires javafx.graphics;
-    
+    // matheclipse-core se gestiona como dependencia en el pom; evitar requerir módulos
+
 
     opens com.ecuaciones.diferenciales.model to javafx.fxml;
     

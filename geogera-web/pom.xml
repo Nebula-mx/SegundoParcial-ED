@@ -1,0 +1,61 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.ecuaciones.diferenciales</groupId>
+    <artifactId>geogera-web</artifactId>
+    <version>0.1</version>
+    <packaging>war</packaging>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <jetty.port>8080</jetty.port>
+    </properties>
+
+    <dependencies>
+        <!-- Dependencia sobre el módulo core (debe estar instalado en el repo local) -->
+        <dependency>
+            <groupId>com.ecuaciones.diferenciales</groupId>
+            <artifactId>geogera</artifactId>
+            <version>0.1</version>
+        </dependency>
+
+        <!-- Servlet API (provisto por el contenedor/runtime) -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>5.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- JSP API (provisto por el contenedor) -->
+        <dependency>
+            <groupId>jakarta.servlet.jsp</groupId>
+            <artifactId>jakarta.servlet.jsp-api</artifactId>
+            <version>3.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Jetty plugin para desarrollo rápido -->
+            <plugin>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-maven-plugin</artifactId>
+                <version>11.0.15</version>
+                <configuration>
+                    <scanIntervalSeconds>1</scanIntervalSeconds>
+                    <stopPort>9999</stopPort>
+                    <stopKey>stop</stopKey>
+                    <httpConnector>
+                        <port>${jetty.port}</port>
+                    </httpConnector>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
