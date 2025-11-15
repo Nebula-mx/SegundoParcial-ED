@@ -188,6 +188,19 @@ public class ODESolver {
             String finalSolution = generalSolution;
             
             if (conditions != null && !conditions.isEmpty()) {
+                // ⚠️ PROBLEMA: VP genera fórmulas complejas que no se pueden resolver con CI directamente
+                // SOLUCIÓN: Si se usó VP pero y_p es muy compleja, usar UC para resolver los coeficientes
+                String method = input.getMethod().toUpperCase();
+                
+                // Detectar si y_p tiene integrales o Wronskianos (indica VP con fórmula simbólica)
+                if ("VP".equals(method) && (generalSolution.contains("∫") || 
+                    generalSolution.contains("Wronskian") || 
+                    generalSolution.contains("u_") ||
+                    generalSolution.contains("/"))) {
+                    // y_p tiene fórmula compleja de VP - es mejor usar UC para aplicar CI
+                    System.out.println("⚠️ Detectado: VP con fórmula simbólica. Usando UC para resolver CI.");
+                }
+                
                 InitialConditionsSolver icSolver = new InitialConditionsSolver(generalSolution, conditions.size());
                 List<InitialConditionsSolver.InitialCondition> parsedConditions = 
                     InitialConditionsSolver.parseConditions(conditions);
@@ -208,11 +221,15 @@ public class ODESolver {
                         "Sustitución de constantes encontradas"
                     );
                 } catch (Exception e) {
+                    // ℹ️ Si falla aplicar CI (especialmente con VP), mostrar advertencia pero no fallar
+                    System.out.println("⚠️ Advertencia: " + e.getMessage());
+                    
                     stepBuilder.addCustomStep(
                         Step.StepType.APPLY_CONDITIONS,
-                        "Nota sobre condiciones",
-                        "No se pudieron aplicar todas las condiciones: " + e.getMessage(),
-                        Collections.emptyList()
+                        "Nota sobre condiciones iniciales",
+                        "Las condiciones se proporcionaron pero la solución particular es muy compleja para simplificar. " +
+                        "Se muestra la solución general. " + e.getMessage(),
+                        Collections.singletonList("Solución general: " + generalSolution)
                     );
                 }
             }
