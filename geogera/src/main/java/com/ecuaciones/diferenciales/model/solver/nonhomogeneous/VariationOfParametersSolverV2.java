@@ -27,29 +27,73 @@ public class VariationOfParametersSolverV2 {
     
     private static final double TOLERANCE = 1e-9;
     
-    // 📚 Tabla de integrales comunes
+    // 📚 Tabla de integrales EXPANDIDA
     private static final Map<String, String> INTEGRAL_TABLE = new HashMap<>();
     static {
-        // Polinomios
+        // ═══ POLINOMIOS ═══
         INTEGRAL_TABLE.put("1", "x");
         INTEGRAL_TABLE.put("x", "x^2/2");
         INTEGRAL_TABLE.put("x^2", "x^3/3");
         INTEGRAL_TABLE.put("x^3", "x^4/4");
+        INTEGRAL_TABLE.put("x^4", "x^5/5");
+        INTEGRAL_TABLE.put("x^5", "x^6/6");
+        INTEGRAL_TABLE.put("x^(-1)", "ln|x|");
+        INTEGRAL_TABLE.put("1/x", "ln|x|");
         
-        // Exponenciales
+        // ═══ EXPONENCIALES ═══
         INTEGRAL_TABLE.put("e^x", "e^x");
         INTEGRAL_TABLE.put("e^(x)", "e^x");
+        INTEGRAL_TABLE.put("E^x", "E^x");
         INTEGRAL_TABLE.put("e^(-x)", "-e^(-x)");
+        INTEGRAL_TABLE.put("exp(x)", "exp(x)");
+        INTEGRAL_TABLE.put("2^x", "2^x/ln(2)");
+        INTEGRAL_TABLE.put("3^x", "3^x/ln(3)");
         
-        // Trigonométricas
+        // ═══ TRIGONOMÉTRICAS ═══
         INTEGRAL_TABLE.put("sin(x)", "-cos(x)");
+        INTEGRAL_TABLE.put("Sin(x)", "-Cos(x)");
         INTEGRAL_TABLE.put("cos(x)", "sin(x)");
+        INTEGRAL_TABLE.put("Cos(x)", "Sin(x)");
         INTEGRAL_TABLE.put("sin(1x)", "-cos(1x)");
         INTEGRAL_TABLE.put("cos(1x)", "sin(1x)");
-        
-        // Especiales
-        INTEGRAL_TABLE.put("1/x", "ln|x|");
         INTEGRAL_TABLE.put("tan(x)", "-ln|cos(x)|");
+        INTEGRAL_TABLE.put("Tan(x)", "-ln|Cos(x)|");
+        INTEGRAL_TABLE.put("cot(x)", "ln|sin(x)|");
+        INTEGRAL_TABLE.put("sec(x)", "ln|sec(x)+tan(x)|");
+        INTEGRAL_TABLE.put("csc(x)", "-ln|csc(x)+cot(x)|");
+        
+        // ═══ HIPERBÓLICAS ═══
+        INTEGRAL_TABLE.put("sinh(x)", "cosh(x)");
+        INTEGRAL_TABLE.put("cosh(x)", "sinh(x)");
+        INTEGRAL_TABLE.put("tanh(x)", "ln|cosh(x)|");
+        
+        // ═══ PRODUCTOS TRIGONOMÉTRICOS ═══
+        INTEGRAL_TABLE.put("sin(x)*cos(x)", "sin(x)^2/2");
+        INTEGRAL_TABLE.put("sin(x)^2", "x/2-sin(2*x)/4");
+        INTEGRAL_TABLE.put("cos(x)^2", "x/2+sin(2*x)/4");
+        INTEGRAL_TABLE.put("sin(x)*x", "-x*cos(x)+sin(x)");
+        INTEGRAL_TABLE.put("cos(x)*x", "x*sin(x)+cos(x)");
+        
+        // ═══ COMBINACIONES EXPONENCIAL-TRIGONOMÉTRICA ═══
+        INTEGRAL_TABLE.put("e^x*sin(x)", "e^x*(sin(x)-cos(x))/2");
+        INTEGRAL_TABLE.put("e^x*cos(x)", "e^x*(sin(x)+cos(x))/2");
+        INTEGRAL_TABLE.put("x*e^x", "e^x*(x-1)");
+        INTEGRAL_TABLE.put("x^2*e^x", "e^x*(x^2-2*x+2)");
+        
+        // ═══ LOGARÍTMICAS ═══
+        INTEGRAL_TABLE.put("ln(x)", "x*ln(x)-x");
+        INTEGRAL_TABLE.put("log(x)", "x*log(x)-x");
+        INTEGRAL_TABLE.put("x*ln(x)", "x^2*ln(x)/2-x^2/4");
+        
+        // ═══ RAÍCES ═══
+        INTEGRAL_TABLE.put("sqrt(x)", "2*x^(3/2)/3");
+        INTEGRAL_TABLE.put("1/sqrt(x)", "2*sqrt(x)");
+        INTEGRAL_TABLE.put("x/sqrt(x)", "2*x/3");
+        
+        // ═══ ESPECIALES ═══
+        INTEGRAL_TABLE.put("1/(1+x^2)", "arctan(x)");
+        INTEGRAL_TABLE.put("1/sqrt(1-x^2)", "arcsin(x)");
+        INTEGRAL_TABLE.put("1/(x^2+1)", "arctan(x)");
     }
 
     public VariationOfParametersSolverV2(List<String> yFuncs, String nonHomogeneousTerm, 

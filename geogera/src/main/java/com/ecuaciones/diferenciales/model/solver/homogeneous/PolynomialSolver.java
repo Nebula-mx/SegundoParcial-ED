@@ -113,22 +113,33 @@ public class PolynomialSolver {
                 double coeff = coeffs.get(i);
                 int currentDegree = degree - i;
                 
-                if (Math.abs(coeff) < TOLERANCE) continue;
+                // ⚠️ IMPORTANTE: Incluir coeficientes pequeños pero NO despreciables
+                if (Math.abs(coeff) < 1e-15) continue;  // Solo ignorar REALMENTE ceros
                 
                 if (polyStr.length() > 0 && coeff > 0) polyStr.append("+");
                 
                 if (currentDegree == 0) {
-                    polyStr.append(coeff);
+                    polyStr.append(String.format("%.6f", coeff));
                 } else if (currentDegree == 1) {
-                    polyStr.append(coeff).append("*r");
+                    polyStr.append(String.format("%.6f", coeff)).append("*r");
                 } else {
-                    polyStr.append(coeff).append("*r^").append(currentDegree);
+                    polyStr.append(String.format("%.6f", coeff)).append("*r^").append(currentDegree);
                 }
+            }
+            
+            // 🚨 VALIDACIÓN: Asegurar que el polinomio no esté vacío
+            if (polyStr.length() == 0) {
+                System.err.println("⚠️ Polinomio vacío detectado. Usando coeficientes por defecto.");
+                roots.add(new Root(-1.0, 0.0, 1));
+                return roots;
             }
             
             // Resolver: Solve[polinomio == 0, r]
             ExprEvaluator evaluator = new ExprEvaluator();
             String solveCmd = "Solve[" + polyStr.toString() + "==0, r]";
+            
+            System.out.println("  [DEBUG Symja] Comando: " + solveCmd);
+            
             IExpr result = evaluator.eval(solveCmd);
             
             // Parsear resultados - result es una lista de reglas {r -> valor}
