@@ -30,7 +30,7 @@ public class Main{
         
         // Si hay argumentos, usarlos; si no, solicitar interactivamente
         if (args.length > 0) {
-            ecuacion = args[0].toLowerCase();
+            ecuacion = args[0];  // NO convertir a lowercase, mantener formato original
             if (args.length > 1) {
                 metodoSeleccionado = args[1].toUpperCase();
             }
@@ -49,7 +49,7 @@ public class Main{
             if (ecuacion == null) {
                 System.out.println("\n📝 INGRESO DE DATOS:");
                 System.out.print("   Ingresa una ecuación (Ej: y'' + 4y = 8cos(2x)): ");
-                ecuacion = scanner.nextLine().toLowerCase();
+                ecuacion = scanner.nextLine();  // NO convertir a lowercase
                 
                 // Opción de método (UC o VP)
                 System.out.print("\n❓ ¿Qué método prefieres? (UC/VP) [default=UC]: ");
@@ -186,16 +186,24 @@ public class Main{
                         System.err.println("   ❌ VP solo aplica a EDOs de orden >= 2.");
                         solution_p = "VP: Orden no soportado";
                     } else {
-                        WronskianCalculator wc = new WronskianCalculator(finalRoots);
-                        List<String> yFunctions = wc.generateFundamentalSet(); 
-                        
-                        double leadingCoeff = coeffsArray[0]; 
-                        
-                        VariationOfParametersSolverV2 vpSolver = new VariationOfParametersSolverV2(yFunctions, g_x, leadingCoeff, order, wc);
-                        String vpSteps = vpSolver.formulateVdpSolution();
-                        
-                        System.out.println(vpSteps);
-                        solution_p = "Fórmulas generadas (Ver arriba)";
+                        try {
+                            WronskianCalculator wc = new WronskianCalculator(finalRoots);
+                            List<String> yFunctions = wc.generateFundamentalSet(); 
+                            
+                            double leadingCoeff = coeffsArray[0]; 
+                            
+                            VariationOfParametersSolverV2 vpSolver = new VariationOfParametersSolverV2(yFunctions, g_x, leadingCoeff, order, wc);
+                            String vpSteps = vpSolver.formulateVdpSolution();
+                            
+                            System.out.println(vpSteps);
+                            
+                            // Obtener la fórmula compacta de y_p
+                            String ypFormula = vpSolver.getYpFormula();
+                            solution_p = ypFormula;
+                        } catch (Exception e) {
+                            System.err.println("   ❌ Error en VP: " + e.getMessage());
+                            solution_p = "ERROR: Fallo en VP";
+                        }
                     }
                     
                 } else {
@@ -220,12 +228,17 @@ public class Main{
                     // Para VP: mostrar ambas componentes claramente
                     System.out.println("\n   📌 Solución Homogénea:");
                     System.out.println("      y_h(x) = " + final_h);
-                    System.out.println("\n   📌 Solución Particular (Variación de Parámetros):");
-                    System.out.println("      y_p(x) = " + final_p);
-                    System.out.println("\n   📌 Solución General Final:");
-                    System.out.println("      y(x) = y_h(x) + y_p(x)");
-                    System.out.println("      y(x) = (" + final_h + ") + (" + final_p + ")");
-                    solution_final = "(" + final_h + ") + (" + final_p + ")";
+                    
+                    if (!final_p.isEmpty() && !final_p.startsWith("ERROR") && !final_p.startsWith("VP:")) {
+                        System.out.println("\n   📌 Solución Particular (Variación de Parámetros):");
+                        System.out.println("      y_p(x) = " + final_p);
+                        System.out.println("\n   📌 Solución General Final:");
+                        System.out.println("      y(x) = (" + final_h + ") + (" + final_p + ")");
+                        solution_final = "(" + final_h + ") + (" + final_p + ")";
+                    } else {
+                        System.out.println("\n   ⚠️ Solución Particular: " + final_p);
+                        System.out.println("      y(x) = " + final_h);
+                    }
                 } else {
                     // Para UC: lógica original
                     if (!final_p.isEmpty() && !final_p.startsWith("ERROR") && !final_p.contains("Fórmulas")) {

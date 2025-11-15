@@ -25,19 +25,35 @@ public class SymbolicDifferentiator {
             // Convertir a sintaxis Symja
             String symjaExpr = SymjaEngine.convertToSymjaSyntax(expression);
             
-            // Parsear la expresión
-            IExpr expr = EVALUATOR.parse(symjaExpr);
-            
-            // Calcular derivadas sucesivas
-            for (int i = 0; i < order; i++) {
-                expr = F.D(expr, F.x);
-                expr = EVALUATOR.eval(expr);
+            // Usar notación string "D[expr, x]" directamente en Symja
+            // Esto funciona mejor que F.D() porque usa la sintaxis de Mathematica
+            try {
+                String derivativeCommand = "D[" + symjaExpr + ", x]";
+                for (int i = 1; i < order; i++) {
+                    derivativeCommand = "D[" + derivativeCommand + ", x]";
+                }
+                
+                IExpr result = EVALUATOR.eval(derivativeCommand);
+                
+                // Simplificar el resultado
+                IExpr simplified = EVALUATOR.eval(F.Simplify(result));
+                
+                return simplified.toString();
+            } catch (Exception e1) {
+                // FALLBACK: Usar F.D() como método alternativo
+                IExpr expr = EVALUATOR.parse(symjaExpr);
+                
+                // Calcular derivadas sucesivas
+                for (int i = 0; i < order; i++) {
+                    expr = F.D(expr, F.x);
+                    expr = EVALUATOR.eval(expr);
+                }
+                
+                // Simplificar el resultado
+                IExpr simplified = EVALUATOR.eval(F.Simplify(expr));
+                
+                return simplified.toString();
             }
-            
-            // Simplificar el resultado
-            IExpr simplified = EVALUATOR.eval(F.Simplify(expr));
-            
-            return simplified.toString();
         } catch (Exception e) {
             System.err.println("❌ Error calculando derivada de: " + expression);
             e.printStackTrace();
