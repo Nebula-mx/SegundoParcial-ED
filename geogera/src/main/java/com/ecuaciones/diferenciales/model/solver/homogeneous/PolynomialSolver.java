@@ -4,7 +4,15 @@ import com.ecuaciones.diferenciales.model.roots.Root;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Collections;
-import java.util.Arrays;
+
+// SYMJA IMPORTS
+import org.matheclipse.core.eval.ExprEvaluator;
+import org.matheclipse.core.eval.EvalEngine;
+import org.matheclipse.core.expression.F;
+import org.matheclipse.core.interfaces.IExpr;
+import org.matheclipse.core.interfaces.INumber;
+import org.matheclipse.core.interfaces.ISymbol;
+import org.matheclipse.core.interfaces.IAST;
 
 /**
  * Resuelve las raíces del polinomio característico a_n*r^n + ... + a_0 = 0.
