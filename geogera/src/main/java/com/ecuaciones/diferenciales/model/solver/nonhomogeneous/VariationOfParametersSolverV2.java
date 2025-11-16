@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.ecuaciones.diferenciales.model.variation.WronskianCalculator;
+import com.ecuaciones.diferenciales.utils.SymjaEngine;
 
 /**
  * 🔧 Clase MEJORADA para resolver EDO usando Variación de Parámetros (VdP)
@@ -133,7 +134,30 @@ public class VariationOfParametersSolverV2 {
         try {
             // Nota: Symja Integrate requiere parseExpression()
             // Por ahora, dejamos como fallback a tabla
-            return null;
+            String integral = SymjaEngine.symbolicIntegral(expr);
+            if (integral == null || integral.isEmpty()) return null;
+            // Symja returns an unevaluated integral as "∫ (expr) dx" or "Integrate[...]" —
+            // si eso ocurre, devolvemos null para que se use la tabla o el fallback.
+            if (integral.startsWith("∫") || integral.startsWith("Integrate[")) {
+                return null;
+            }
+
+            // Convertir salida de Symja a notación matemática más familiar
+            String human = integral;
+            human = human.replaceAll("Sin\\[", "sin(");
+            human = human.replaceAll("Cos\\[", "cos(");
+            human = human.replaceAll("Tan\\[", "tan(");
+            human = human.replaceAll("Sinh\\[", "sinh(");
+            human = human.replaceAll("Cosh\\[", "cosh(");
+            human = human.replaceAll("Exp\\[", "e^(");
+            human = human.replaceAll("Log\\[", "ln(");
+            // Cerrar corchetes ']' -> ')'
+            human = human.replaceAll("\\]", ")");
+
+            // Ajustes menores: Symja puede devolver e^(x) como Exp[x], ahora es e^(x)
+            // Remover espacios innecesarios
+            human = human.replaceAll("\\s+", " ").trim();
+            return human;
             
         } catch (Exception e) {
             return null;  // Intentar tabla
@@ -164,6 +188,12 @@ public class VariationOfParametersSolverV2 {
      * Intenta Symja, luego tabla, luego falla elegantemente
      */
     private String integrateExpression(String expr) {
+        // PASO 0: SIMPLIFICAR algebraicamente ANTES de integrar
+        String simplified = SymjaEngine.symbolicSimplify(expr);
+        if (simplified != null && !simplified.isEmpty() && !simplified.equals(expr)) {
+            expr = simplified;  // Usar expresión simplificada
+        }
+        
         // INTENTO 1: Symja
         String result = integrateWithSymja(expr);
         if (result != null && !result.isEmpty()) {
@@ -241,6 +271,12 @@ public class VariationOfParametersSolverV2 {
         // Solución particular
         String yp = String.join(" + ", ypTerms);
         
+        // SIMPLIFICACIÓN FINAL: Simplificar algebraicamente la solución particular
+        String ypSimplified = SymjaEngine.symbolicSimplify(yp);
+        if (ypSimplified == null || ypSimplified.isEmpty() || ypSimplified.equals(yp)) {
+            ypSimplified = yp;  // Usar original si simplificación falla
+        }
+        
         sb.append("═".repeat(60)).append("\n");
         sb.append("✨ SOLUCIÓN PARTICULAR\n");
         sb.append("═".repeat(60)).append("\n\n");
@@ -250,14 +286,15 @@ public class VariationOfParametersSolverV2 {
             sb.append("       + (").append(uFunctions.get(i)).append(") * (")
               .append(yFunctions.get(i)).append(")\n");
         }
-        sb.append("\nForma Final:\n");
-        sb.append("y_p(x) = ").append(yp).append("\n");
+        sb.append("\nForma Simplificada:\n");
+        sb.append("y_p(x) = ").append(ypSimplified).append("\n");
         
         return sb.toString();
     }
 
     /**
      * 📄 Retornar solo la fórmula compacta de y_p (sin el prefijo "y_p(x) =")
+     * MEJORADO: Retorna la versión SIMPLIFICADA de y_p
      */
     public String getYpFormula() {
         if (order < 2) {
@@ -282,6 +319,14 @@ public class VariationOfParametersSolverV2 {
             ypTerms.add("(" + uiFormula + ") * (" + yFunctions.get(i) + ")");
         }
 
-        return String.join(" + ", ypTerms);
+        String yp = String.join(" + ", ypTerms);
+        
+        // SIMPLIFICACIÓN FINAL
+        String ypSimplified = SymjaEngine.symbolicSimplify(yp);
+        if (ypSimplified == null || ypSimplified.isEmpty() || ypSimplified.equals(yp)) {
+            ypSimplified = yp;
+        }
+        
+        return ypSimplified;
     }
 }

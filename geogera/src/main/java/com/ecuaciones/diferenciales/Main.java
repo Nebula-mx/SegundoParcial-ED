@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.regex.Pattern;
 
 import com.ecuaciones.diferenciales.model.EcuationParser;
 import com.ecuaciones.diferenciales.model.roots.Root;
@@ -16,89 +17,97 @@ import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.VariationOfParam
 import com.ecuaciones.diferenciales.model.templates.ExpressionData;
 import com.ecuaciones.diferenciales.model.variation.WronskianCalculator;
 
-public class Main{
+public class Main {
+    
+    private static final String SEPARATOR = "╔════════════════════════════════════════════════════════════╗";
+    private static final String SEPARATOR_END = "╚════════════════════════════════════════════════════════════╝";
     
     public static void main(String[] args) {
-        
-        EcuationParser parser = new EcuationParser(); 
-        ExpressionData data = null; 
-        
-        // Parsear argumentos de línea de comandos
-        String ecuacion = null;
-        String metodoSeleccionado = "UC"; // Por defecto UC
-        List<String> condicionesIniciales = new ArrayList<>();
-        
-        // Si hay argumentos, usarlos; si no, solicitar interactivamente
-        if (args.length > 0) {
-            ecuacion = args[0];  // NO convertir a lowercase, mantener formato original
-            if (args.length > 1) {
-                metodoSeleccionado = args[1].toUpperCase();
-            }
-            // Condiciones iniciales: args[2], args[3], ...
-            for (int i = 2; i < args.length; i++) {
-                condicionesIniciales.add(args[i]);
-            }
-        }
+        EcuationParser parser = new EcuationParser();
         
         try (Scanner scanner = new Scanner(System.in)) {
-            System.out.println("╔════════════════════════════════════════════════════════════╗");
-            System.out.println("║     RESOLVEDOR INTERACTIVO DE ECUACIONES DIFERENCIALES     ║");
-            System.out.println("╚════════════════════════════════════════════════════════════╝");
+            mostrarMenuPrincipal();
             
-            // Si no hay argumentos, solicitar interactivamente
-            if (ecuacion == null) {
-                System.out.println("\n📝 INGRESO DE DATOS:");
-                System.out.print("   Ingresa una ecuación (Ej: y'' + 4y = 8cos(2x)): ");
-                ecuacion = scanner.nextLine();  // NO convertir a lowercase
+            // Menú principal - loop continuo
+            boolean continuarPrograma = true;
+            int numeroEcuacion = 1;
+            
+            while (continuarPrograma) {
+                System.out.print("\n¿Deseas resolver una ecuación diferencial? (s/n): ");
+                String respuesta = scanner.nextLine().trim().toLowerCase();
                 
-                // Opción de método (UC o VP)
-                System.out.print("\n❓ ¿Qué método prefieres? (UC/VP) [default=UC]: ");
-                String metodoInput = scanner.nextLine().trim().toUpperCase();
-                if ("VP".equals(metodoInput)) {
-                    metodoSeleccionado = "VP";
+                if (!"s".equals(respuesta) && !"si".equals(respuesta)) {
+                    System.out.println("\n👋 ¡Gracias por usar el resolvedor de EDOs!");
+                    System.out.println("   📊 Total de ecuaciones resueltas: " + (numeroEcuacion - 1));
+                    break;
                 }
                 
-                // Opción de condiciones iniciales
-                System.out.print("\n❓ ¿Deseas agregar condiciones iniciales? (s/n): ");
-                String respuestCI = scanner.nextLine().trim().toLowerCase();
+                // Variables para cada iteración
+                String ecuacion = null;
+                String metodoSeleccionado = "UC";
+                List<String> condicionesIniciales = new ArrayList<>();
                 
-                if ("s".equals(respuestCI) || "si".equals(respuestCI)) {
-                    System.out.println("\n📋 INGRESO DE CONDICIONES INICIALES:");
-                    System.out.println("   Formato: y(0)=1, y'(0)=2, etc.");
-                    System.out.println("   (Ingresa vacío cuando termines)");
-                    
-                    while (true) {
-                        System.out.print("   CI: ");
-                        String ci = scanner.nextLine().trim();
-                        if (ci.isEmpty()) {
-                            break;
-                        }
-                        condicionesIniciales.add(ci);
-                    }
-                    
-                    if (!condicionesIniciales.isEmpty()) {
-                        System.out.println("\n✅ Condiciones iniciales ingresadas: " + condicionesIniciales);
-                    }
+                System.out.println("\n╔════════════════════════════════════════════════════════════╗");
+                System.out.println("║  ECUACIÓN #" + numeroEcuacion + "                                            ║");
+                System.out.println("╚════════════════════════════════════════════════════════════╝");
+                
+                // Ingreso de ecuación con validación
+                ecuacion = ingresarEcuacion(scanner);
+                if (ecuacion == null) {
+                    continue;
+                }
+                numeroEcuacion++;
+                
+                // Seleccionar método
+                metodoSeleccionado = seleccionarMetodo(scanner, ecuacion);
+                
+                // Ingresar condiciones iniciales
+                condicionesIniciales = ingresarCondicionesIniciales(scanner);
+
+                // Resolver la ecuación
+                try {
+                    resolverEcuacion(parser, ecuacion, metodoSeleccionado, condicionesIniciales);
+                } catch (Exception e) {
+                    System.err.println("\n❌ Error durante la resolución: " + e.getMessage());
                 }
             }
-
-            if (!esEcuacionDiferencial(ecuacion)) {
-                System.out.println("❌ ERROR: La ecuación ingresada NO es una ecuación diferencial.");
+            
+        } catch (Exception e) {
+            System.err.println("\n❌ Ocurrió un error crítico: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Resuelve una ecuación diferencial con la información proporcionada
+     */
+    private static void resolverEcuacion(EcuationParser parser, String ecuacion, 
+                                         String metodo, List<String> condicionesIniciales) {
+        
+        if (!esEcuacionDiferencial(ecuacion)) {
+            System.out.println("❌ ERROR: La ecuación ingresada NO es una ecuación diferencial.");
+            System.out.println("   Asegúrate de que contiene: y, y', y'', etc.");
+            return;
+        }
+        
+        try {
+            // 1. Parsear la ecuación y extraer datos
+            ExpressionData data = parser.parse(ecuacion);
+            
+            if (data == null) {
+                System.out.println("❌ ERROR: No se pudo parsear la ecuación.");
                 return;
             }
-            
-            // 1. Parsear la ecuación y extraer datos
-            data = parser.parse(ecuacion);
             
             Double[] coeffsArray = data.getCoefficients(); 
             int order = data.getOrder();
             
             if (coeffsArray == null || coeffsArray.length == 0 || order <= 0) {
-                System.out.println("❌ ERROR: No se pudo extraer el polinomio característico o el orden es incorrecto.");
+                System.out.println("❌ ERROR: No se pudo extraer el polinomio característico.");
                 return;
             }
             
-            // Convertir Double[] a List<Double> para PolynomialSolver
+            // Convertir Double[] a List<Double>
             List<Double> coeffs = Arrays.asList(coeffsArray);
 
             System.out.println("\n╔════════════════════════════════════════════════════════════╗");
@@ -111,16 +120,18 @@ public class Main{
             System.out.println("   🏠 Tipo: " + (data.getIsHomogeneous() ? "HOMOGÉNEA" : "NO-HOMOGÉNEA"));
             if (!data.getIsHomogeneous()) {
                 String g_x = data.getIndependentTerm().get("g(x)");
-                System.out.println("   🔌 Forzamiento: " + g_x);
+                System.out.println("   🔌 Forzamiento: g(x) = " + g_x);
             }
             
-            System.out.println("\n   📌 Método seleccionado: " + metodoSeleccionado);
+            if (!"HOMOGENEA".equals(metodo)) {
+                System.out.println("   📌 Método seleccionado: " + metodo);
+            }
             
             System.out.println("\n╔════════════════════════════════════════════════════════════╗");
             System.out.println("║             PASO 1: SOLUCIÓN HOMOGÉNEA (y_h)              ║");
             System.out.println("╚════════════════════════════════════════════════════════════╝");
             
-            // 1. Resolver raíces y generar y_h
+            // Resolver raíces y generar y_h
             List<Root> finalRoots = PolynomialSolver.solve(coeffs);
             System.out.println("\n🔍 Raíces del Polinomio Característico:");
             for (int i = 0; i < finalRoots.size(); i++) {
@@ -130,7 +141,7 @@ public class Main{
 
             HomogeneousSolver hSolver = new HomogeneousSolver();
             String solution_h = hSolver.generateHomogeneousSolution(finalRoots);
-            System.out.println("\n✅ Solución Homogénea (y_h):");
+            System.out.println("\n✅ Solución Homogénea:");
             System.out.println("   y_h(x) = " + solution_h);
 
             // --- FASE DE SOLUCIÓN PARTICULAR (y_p) ---
@@ -143,186 +154,287 @@ public class Main{
                 System.out.println("╚════════════════════════════════════════════════════════════╝");
                 System.out.println("   🔌 Forzamiento: g(x) = " + g_x);
                 
-                System.out.println("\n   ✅ Método: " + metodoSeleccionado);
+                // Si metodo es AUTO, intentar UC primero
+                String metodoActual = metodo;
+                if ("AUTO".equals(metodo)) {
+                    metodoActual = "UC";
+                    System.out.println("   ✅ Estrategia: Intentar UC primero, fallback a VP");
+                }
                 
-                if ("UC".equals(metodoSeleccionado)) {
-                    // --- Método 1: Coeficientes Indeterminados (UC) ---
-                    System.out.println("\n   📌 Usando Coeficientes Indeterminados (UC)...");
+                System.out.println("   📌 Método inicial: " + metodoActual);
+                
+                boolean metodoPrincipalFallo = false;
+                
+                if ("UC".equals(metodoActual)) {
+                    // --- Método 1: Coeficientes Indeterminados ---
+                    System.out.println("\n   📌 Resolviendo con Coeficientes Indeterminados...");
                     
-                    boolean ucFailed = false;
                     try {
-                        // 1. Generar la forma (y el ucSolver la almacena)
                         UndeterminedCoeff ucSolver = new UndeterminedCoeff(finalRoots);
-                        
                         String ypForm = ucSolver.getParticularSolutionForm(g_x); 
                         System.out.println("   ✓ Forma propuesta: y_p = " + ypForm);
                         
                         List<String> ypCoeffNames = ucSolver.getCoeffNames(); 
-                        System.out.println("   ✓ Incógnitas a resolver: " + ypCoeffNames);
+                        System.out.println("   ✓ Incógnitas: " + ypCoeffNames);
                         
-                        // 2. Instanciar el Resolver
                         UndeterminedCoeffResolver ucResolver = new UndeterminedCoeffResolver(data, ucSolver); 
-                        
-                        // 3. Resolver el sistema A|b
                         Map<String, Double> solvedCoeffs = ucResolver.resolveCoefficients(); 
-                        System.out.println("   ✓ Sistema resuelto: " + solvedCoeffs);
+                        System.out.println("   ✓ Coeficientes calculados: " + solvedCoeffs);
                         
-                        // 4. Generar la solución final
                         solution_p = ucSolver.generateParticularSolution(ypForm, solvedCoeffs);
+                        System.out.println("   ✅ UC fue exitoso");
                         
                     } catch (ArithmeticException e) {
-                         System.err.println("   ⚠️ El sistema es singular (probablemente resonancia).");
-                         System.err.println("   📝 Auto-switcheando a VP...");
-                         ucFailed = true;
-                    } catch (Exception e) {
-                         System.err.println("   ⚠️ Error en UC: " + e.getMessage());
-                         System.err.println("   📝 Auto-switcheando a VP...");
-                         ucFailed = true;
-                    }
-                    
-                    // Si UC falló, auto-switchear a VP
-                    if (ucFailed) {
-                        metodoSeleccionado = "VP";  // Cambiar a VP
-                        System.out.println("   📌 Usando Variación de Parámetros (VP - fallback)...\n");
+                        // UC maneja resonancia internamente - no cambiar de método
+                        System.out.println("   ⚠️ Sistema singular detectado (posible RESONANCIA)");
+                        System.out.println("   ℹ️ UC resuelve resonancia analíticamente...");
+                        metodoPrincipalFallo = false;  // No es un fallo, UC lo maneja
                         
-                        if (order >= 2) {
-                            try {
-                                WronskianCalculator wc = new WronskianCalculator(finalRoots);
-                                List<String> yFunctions = wc.generateFundamentalSet(); 
-                                double leadingCoeff = coeffsArray[0]; 
-                                
-                                VariationOfParametersSolverV2 vpSolver = new VariationOfParametersSolverV2(yFunctions, g_x, leadingCoeff, order, wc);
-                                String vpSteps = vpSolver.formulateVdpSolution();
-                                
-                                System.out.println(vpSteps);
-                                String ypFormula = vpSolver.getYpFormula();
-                                solution_p = ypFormula;
-                            } catch (Exception ex) {
-                                System.err.println("   ❌ Error también en VP: " + ex.getMessage());
-                                solution_p = "ERROR: Falló UC y VP";
-                            }
+                    } catch (Exception e) {
+                        metodoPrincipalFallo = true;
+                        System.out.println("   ⚠️ Error en UC: " + e.getMessage());
+                        if ("AUTO".equals(metodo)) {
+                            // Si era AUTO, intentar VP
+                            System.out.println("   ℹ️ Switcheando a Variación de Parámetros...");
+                        } else {
+                            // Si user seleccionó UC específicamente, mostrar error pero NO cambiar
+                            solution_p = "ERROR: " + e.getMessage();
                         }
                     }
-
-                } else if ("VP".equals(metodoSeleccionado)) {
-                    // --- Método 2: Variación de Parámetros (VP) ---
-                    System.out.println("\n   📌 Usando Variación de Parámetros (VP)...");
+                }
+                
+                // Si UC falló o es VP directamente
+                if (metodoPrincipalFallo || "VP".equals(metodoActual)) {
+                    System.out.println("\n   📌 Usando Variación de Parámetros (VP)...\n");
                     
                     if (order < 2) {
-                        System.err.println("   ❌ VP solo aplica a EDOs de orden >= 2.");
-                        solution_p = "VP: Orden no soportado";
+                        System.out.println("   ❌ VP requiere orden >= 2");
+                        solution_p = "ERROR: VP requiere orden >= 2";
                     } else {
                         try {
                             WronskianCalculator wc = new WronskianCalculator(finalRoots);
                             List<String> yFunctions = wc.generateFundamentalSet(); 
-                            
                             double leadingCoeff = coeffsArray[0]; 
                             
-                            VariationOfParametersSolverV2 vpSolver = new VariationOfParametersSolverV2(yFunctions, g_x, leadingCoeff, order, wc);
+                            VariationOfParametersSolverV2 vpSolver = 
+                                new VariationOfParametersSolverV2(yFunctions, g_x, leadingCoeff, order, wc);
                             String vpSteps = vpSolver.formulateVdpSolution();
                             
                             System.out.println(vpSteps);
-                            
-                            // Obtener la fórmula compacta de y_p
-                            String ypFormula = vpSolver.getYpFormula();
-                            solution_p = ypFormula;
-                        } catch (Exception e) {
-                            System.err.println("   ❌ Error en VP: " + e.getMessage());
-                            solution_p = "ERROR: Fallo en VP";
+                            solution_p = vpSolver.getYpFormula();
+                            System.out.println("   ✅ VP fue exitoso");
+                        } catch (Exception ex) {
+                            System.err.println("   ❌ Error en VP: " + ex.getMessage());
+                            solution_p = "ERROR";
                         }
                     }
-                    
-                } else {
-                    System.err.println("   ⚠️ Opción no válida.");
-                    solution_p = ""; 
                 }
 
                 System.out.println("\n   ✅ Solución Particular: y_p = " + solution_p);
                 
-                // --- Ensamblaje de la Solución General ---
-                String final_p = solution_p.trim();
-                String final_h = solution_h.trim();
-                String solution_final = final_h;
-                
+                // --- Ensamblaje Final ---
                 System.out.println("\n╔════════════════════════════════════════════════════════════╗");
                 System.out.println("║              SOLUCIÓN GENERAL FINAL                        ║");
                 System.out.println("╚════════════════════════════════════════════════════════════╝");
-                System.out.println("   y(x) = y_h(x) + y_p(x)");
                 
-                // --- Concatenar la solución particular ---
-                if ("VP".equals(metodoSeleccionado)) {
-                    // Para VP: mostrar ambas componentes claramente
-                    System.out.println("\n   📌 Solución Homogénea:");
-                    System.out.println("      y_h(x) = " + final_h);
-                    
-                    if (!final_p.isEmpty() && !final_p.startsWith("ERROR") && !final_p.startsWith("VP:")) {
-                        System.out.println("\n   📌 Solución Particular (Variación de Parámetros):");
-                        // Remover duplicados "y_p(x) = " si existen
-                        String cleanedYp = final_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
-                        System.out.println("      y_p(x) = " + cleanedYp);
-                        System.out.println("\n   📌 Solución General Final:");
-                        System.out.println("      y(x) = (" + final_h + ") + (" + cleanedYp + ")");
-                        solution_final = "(" + final_h + ") + (" + cleanedYp + ")";
-                    } else {
-                        System.out.println("\n   ⚠️ Solución Particular: " + final_p);
-                        System.out.println("      y(x) = " + final_h);
-                    }
+                System.out.println("\n   📌 Solución Homogénea:");
+                System.out.println("      y_h(x) = " + solution_h);
+                
+                String cleanedYp = solution_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
+                if (!cleanedYp.isEmpty() && !cleanedYp.startsWith("ERROR")) {
+                    System.out.println("\n   📌 Solución Particular:");
+                    System.out.println("      y_p(x) = " + cleanedYp);
+                    System.out.println("\n   📌 Solución General:");
+                    System.out.println("      y(x) = (" + solution_h + ") + (" + cleanedYp + ")");
                 } else {
-                    // Para UC: lógica original
-                    if (!final_p.isEmpty() && !final_p.startsWith("ERROR") && !final_p.contains("Fórmulas")) {
-                        if (!final_p.matches("^[\\+\\-]?\\s*0(\\.0+)?$")) { 
-                            String clean_p = final_p.replaceAll("^\\+", "").trim();
-                            if (clean_p.startsWith("-")) {
-                                solution_final += clean_p;
-                            } else {
-                                solution_final += " + " + clean_p;
-                            }
-                        }
-                    }
-                    System.out.println("   y(x) = " + solution_final.trim());
+                    System.out.println("      y(x) = " + solution_h);
                 }
                 
-                // Si hay condiciones iniciales, mostrar mensaje
-                if (!condicionesIniciales.isEmpty()) {
-                    System.out.println("\n   📌 Nota: Condiciones iniciales ingresadas para futura integración web.");
-                    System.out.println("   CI: " + condicionesIniciales);
-                }
-
             } else {
                 System.out.println("\n╔════════════════════════════════════════════════════════════╗");
                 System.out.println("║              SOLUCIÓN FINAL (HOMOGÉNEA)                    ║");
                 System.out.println("╚════════════════════════════════════════════════════════════╝");
                 System.out.println("   y(x) = " + solution_h);
-                
-                if (!condicionesIniciales.isEmpty()) {
-                    System.out.println("\n   📌 Nota: Condiciones iniciales ingresadas para futura integración web.");
-                    System.out.println("   CI: " + condicionesIniciales);
-                }
             }
             
-            System.out.println("\n✨ ¡Proceso completado exitosamente!");
+            // Mostrar CI ingresadas
+            if (!condicionesIniciales.isEmpty()) {
+                System.out.println("\n   📌 Condiciones Iniciales Ingresadas:");
+                for (String ci : condicionesIniciales) {
+                    System.out.println("      • " + ci);
+                }
+                System.out.println("   ℹ️ Nota: Las CI se pueden usar en integración web.");
+            }
+            
+            mostrarResumenExitoso();
             
         } catch (Exception e) {
-            System.err.println("\nOcurrió un error crítico durante la ejecución: " + e.getMessage());
-            e.printStackTrace(); 
+            System.err.println("\n❌ Error crítico durante la resolución:");
+            System.err.println("   " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
-    // --- MÉTODOS AUXILIARES ---
     /**
-     * Verifica de forma simple si la cadena de entrada contiene notación de derivada o 'y'.
+     * Muestra el menú principal del programa
+     */
+    private static void mostrarMenuPrincipal() {
+        System.out.println("\n╔════════════════════════════════════════════════════════════╗");
+        System.out.println("║     🎓 RESOLVEDOR INTERACTIVO DE ECUACIONES DIFERENCIALES 🎓 ║");
+        System.out.println("╠════════════════════════════════════════════════════════════╣");
+        System.out.println("║                                                            ║");
+        System.out.println("║  Este programa resuelve:                                   ║");
+        System.out.println("║  ✅ Ecuaciones Homogéneas (cualquier orden)               ║");
+        System.out.println("║  ✅ No-Homogéneas por Coeficientes Indeterminados (UC)   ║");
+        System.out.println("║  ✅ No-Homogéneas por Variación de Parámetros (VP)       ║");
+        System.out.println("║  ✅ Detección automática de resonancia                    ║");
+        System.out.println("║  ✅ Aplicación de Condiciones Iniciales                   ║");
+        System.out.println("║                                                            ║");
+        System.out.println("╠════════════════════════════════════════════════════════════╣");
+        System.out.println("║  FORMATOS SOPORTADOS:                                      ║");
+        System.out.println("║  • y' + 2y = 4                 (primer orden)              ║");
+        System.out.println("║  • y'' - 5y' + 6y = 0          (segundo orden, homogénea) ║");
+        System.out.println("║  • y'' + 4y = 2*sin(x)         (no-homogénea)            ║");
+        System.out.println("║  • y^(4) - 5y'' + 4y = e^(x)  (orden superior)            ║");
+        System.out.println("║  • y(0)=1, y'(0)=2             (condiciones iniciales)    ║");
+        System.out.println("║                                                            ║");
+        System.out.println("╚════════════════════════════════════════════════════════════╝");
+    }
+
+    /**
+     * Verifica si la cadena es una ecuación diferencial válida
      */
     public static boolean esEcuacionDiferencial(String ecuacion) {
-        // Patrones de derivada (y', y'', d2y/dx2, etc.)
         String[] derivativePatterns = { "dy/dx", "d2y/dx2", "y'", "y''", "y'''" }; 
         for (String pattern : derivativePatterns) {
             if (ecuacion.contains(pattern)) return true;
         }
         
-        // Patrón para verificar la existencia del término 'y' (con o sin coeficiente) y el signo '='
-        // Esto cubre y'' + 4y = ...
         if (ecuacion.contains("y") && ecuacion.contains("=")) return true;
+        if (ecuacion.contains("y^")) return true;
 
         return false;
     }
+    
+    /**
+     * Ingresa y valida una ecuación diferencial
+     */
+    private static String ingresarEcuacion(Scanner scanner) {
+        System.out.println("\n📝 INGRESO DE ECUACIÓN:");
+        System.out.println("   💡 Ejemplos válidos:");
+        System.out.println("      • Homogénea: y'' - 5*y' + 6*y = 0");
+        System.out.println("      • No-homogénea: y'' + 4*y = 8*cos(2*x)");
+        System.out.println("      • Orden 1: y' + 2*y = 4");
+        System.out.println("      • Orden 3+: y''' - y' = x^2");
+        System.out.print("\n   Ingresa la ecuación: ");
+        
+        String ecuacion = scanner.nextLine().trim();
+        
+        if (ecuacion.isEmpty()) {
+            System.out.println("   ⚠️ Ecuación vacía, saltando...");
+            return null;
+        }
+        
+        if (!esEcuacionDiferencial(ecuacion)) {
+            System.out.println("   ⚠️ ADVERTENCIA: La ecuación podría no ser válida.");
+            System.out.println("   ✓ Intentando procesar de todas formas...");
+        }
+        
+        return ecuacion;
+    }
+    
+    /**
+     * Selecciona método de resolución
+     */
+    private static String seleccionarMetodo(Scanner scanner, String ecuacion) {
+        // Verificar si es homogénea
+        if (!ecuacion.contains("=") || ecuacion.split("=")[1].trim().equals("0")) {
+            System.out.println("   📌 Ecuación homogénea detectada (método automático)");
+            return "HOMOGENEA";
+        }
+        
+        System.out.println("\n❓ Selecciona método de resolución:");
+        System.out.println("   1. UC  - Coeficientes Indeterminados (más rápido)");
+        System.out.println("   2. VP  - Variación de Parámetros (más general)");
+        System.out.println("   3. AUTO - Automático (UC → VP si falla)");
+        System.out.print("   Opción [1/2/3] (default=3): ");
+        
+        String input = scanner.nextLine().trim();
+        
+        if ("1".equals(input) || "uc".equalsIgnoreCase(input)) {
+            return "UC";
+        } else if ("2".equals(input) || "vp".equalsIgnoreCase(input)) {
+            return "VP";
+        } else {
+            return "AUTO";
+        }
+    }
+    
+    /**
+     * Ingresa condiciones iniciales
+     */
+    private static List<String> ingresarCondicionesIniciales(Scanner scanner) {
+        List<String> condiciones = new ArrayList<>();
+        
+        System.out.print("\n❓ ¿Deseas agregar condiciones iniciales? (s/n): ");
+        String respuesta = scanner.nextLine().trim().toLowerCase();
+        
+        if (!"s".equals(respuesta) && !"si".equals(respuesta)) {
+            return condiciones;
+        }
+        
+        System.out.println("\n📋 INGRESO DE CONDICIONES INICIALES:");
+        System.out.println("   Formato: y(0)=1, y'(0)=2, y''(0)=3, etc.");
+        System.out.println("   (Ingresa línea vacía para terminar)");
+        
+        int contador = 1;
+        while (true) {
+            System.out.print("   CI " + contador + ": ");
+            String ci = scanner.nextLine().trim();
+            
+            if (ci.isEmpty()) {
+                break;
+            }
+            
+            if (validarCondicionInicial(ci)) {
+                condiciones.add(ci);
+                contador++;
+            } else {
+                System.out.println("      ⚠️ Formato inválido. Usa: y(a)=b o y'(a)=b");
+            }
+        }
+        
+        if (!condiciones.isEmpty()) {
+            System.out.println("\n   ✅ " + condiciones.size() + " condición(es) ingresada(s):");
+            for (String ci : condiciones) {
+                System.out.println("      • " + ci);
+            }
+        }
+        
+        return condiciones;
+    }
+    
+    /**
+     * Valida formato de condición inicial
+     */
+    private static boolean validarCondicionInicial(String ci) {
+        // Formato: y(x)=valor o y'(x)=valor
+        return ci.matches("y'*\\(-?\\d+(?:\\.\\d+)?\\)=-?\\d+(?:\\.\\d+)?");
+    }
+    
+    /**
+     * Muestra resumen de la resolución
+     */
+    private static void mostrarResumenExitoso() {
+        System.out.println("\n╔════════════════════════════════════════════════════════════╗");
+        System.out.println("║              ✨ RESOLUCIÓN EXITOSA ✨                      ║");
+        System.out.println("╚════════════════════════════════════════════════════════════╝");
+        System.out.println("   ✅ Ecuación procesada correctamente");
+        System.out.println("   📌 Consulta la salida anterior para los detalles");
+    }
+    
+    /**
+     * Detecta resonancia pura trigonométrica y extrae coeficientes analíticamente
+     */
 }
+

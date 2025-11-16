@@ -47,7 +47,7 @@ public class FunctionAnalyzer {
     
     // Captura beta en sin/cos(beta*x)
     private static final Pattern SIN_COS_PATTERN = Pattern.compile(
-        "(?:sin|cos)\\s*\\(?\\s*([+\\-]?(?:\\d*\\.?\\d*|))\\s*x\\)?", Pattern.CASE_INSENSITIVE
+        "(?:sin|cos)\\s*\\(?\\s*([+\\-]?(?:\\d*\\.?\\d*))\\s*\\*?\\s*x\\)?", Pattern.CASE_INSENSITIVE
     );
     
     // Patrón interno para detectar el grado del polinomio (no se usa en la función principal)

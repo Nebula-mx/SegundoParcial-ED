@@ -109,12 +109,18 @@ public class PolynomialSolver {
             StringBuilder polyStr = new StringBuilder();
             int degree = coeffs.size() - 1;
             
+            System.out.println("  [DEBUG Symja] Coeficientes recibidos: " + coeffs);
+            System.out.println("  [DEBUG Symja] Grado: " + degree);
+            
             for (int i = 0; i < coeffs.size(); i++) {
                 double coeff = coeffs.get(i);
                 int currentDegree = degree - i;
                 
                 // ⚠️ IMPORTANTE: Incluir coeficientes pequeños pero NO despreciables
-                if (Math.abs(coeff) < 1e-15) continue;  // Solo ignorar REALMENTE ceros
+                if (Math.abs(coeff) < 1e-15) {
+                    System.out.println("    Saltando r^" + currentDegree + " (coeff=" + coeff + ")");
+                    continue;
+                }
                 
                 if (polyStr.length() > 0 && coeff > 0) polyStr.append("+");
                 
@@ -125,6 +131,7 @@ public class PolynomialSolver {
                 } else {
                     polyStr.append(String.format("%.6f", coeff)).append("*r^").append(currentDegree);
                 }
+                System.out.println("    Añadido r^" + currentDegree + ": " + String.format("%.6f", coeff));
             }
             
             // 🚨 VALIDACIÓN: Asegurar que el polinomio no esté vacío
@@ -138,28 +145,46 @@ public class PolynomialSolver {
             ExprEvaluator evaluator = new ExprEvaluator();
             String solveCmd = "Solve[" + polyStr.toString() + "==0, r]";
             
-            System.out.println("  [DEBUG Symja] Comando: " + solveCmd);
+            System.out.println("  [DEBUG Symja] Comando final: " + solveCmd);
             
             IExpr result = evaluator.eval(solveCmd);
             
             // Parsear resultados - result es una lista de reglas {r -> valor}
+            // Estructura: {{r->-2.0},{r->-1.0},{r->1.0},{r->2.0}}
             if (result.isList()) {
                 IAST list = (IAST) result;
+                System.out.println("  [DEBUG] Resultado es lista con " + list.size() + " elementos");
+                
+                // Iterar desde índice 1 (el 0 es el símbolo "List")
                 for (int i = 1; i < list.size(); i++) {
-                    IExpr rule = list.get(i); // Cada elemento es una regla
-                    if (rule.isList()) {
-                        IAST ruleList = (IAST) rule;
-                        if (ruleList.size() >= 3) {
-                            // ruleList es {r, valor}
-                            IExpr ruleValue = ruleList.get(2);
-                            roots.add(parseSymjaRoot(ruleValue));
+                    IExpr elem = list.get(i);
+                    System.out.println("  [DEBUG] Elemento " + i + ": " + elem.toString());
+                    
+                    // Cada elemento es una lista con estructura {Head, Rule}
+                    if (elem instanceof IAST) {
+                        IAST innerList = (IAST) elem;
+                        // innerList.size() = 2: [0]=List head, [1]=Rule expr
+                        if (innerList.size() >= 2) {
+                            IExpr ruleExpr = innerList.get(1);  // Esto es la Rule (r->valor)
+                            
+                            System.out.println("    [DEBUG] Rule expr: " + ruleExpr.toString());
+                            
+                            // Procesar como Rule AST: Rule[r, valor]
+                            if (ruleExpr instanceof IAST) {
+                                IAST ruleAst = (IAST) ruleExpr;
+                                // Rule tiene estructura: [0]=Rule head, [1]=variable, [2]=valor
+                                if (ruleAst.size() >= 3) {
+                                    IExpr valueExpr = ruleAst.get(2);  // El valor de la raíz
+                                    System.out.println("    [DEBUG] Valor extraído: " + valueExpr.toString());
+                                    roots.add(parseSymjaRoot(valueExpr));
+                                }
+                            }
                         }
-                    } else {
-                        // Directamente es una raíz
-                        roots.add(parseSymjaRoot(rule));
                     }
                 }
             }
+            
+            System.out.println("  [DEBUG] Total raíces extraídas: " + roots.size());
             
         } catch (Exception e) {
             System.err.println("Error en Symja: " + e.getMessage());

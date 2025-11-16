@@ -119,22 +119,27 @@ public class UndeterminedCoeffResolver {
                         currentCoeff = Double.parseDouble(coeffStr);
                     } catch (NumberFormatException e) {
                         // ⚠️ MEJORA: Si el coeficiente contiene variables, intentar simplificar
-                        try {
-                            String simplified = SymbolicDifferentiator.simplify(coeffStr);
-                            if (!simplified.equals(coeffStr)) {
-                                // Si la simplificación cambió algo, intentar parsear de nuevo
-                                try {
-                                    currentCoeff = Double.parseDouble(simplified);
-                                } catch (NumberFormatException e3) {
-                                    // Aún no es un número puro
+                        if (isSafeToSimplify(coeffStr)) {
+                            try {
+                                String simplified = SymbolicDifferentiator.simplify(coeffStr);
+                                if (!simplified.equals(coeffStr)) {
+                                    // Si la simplificación cambió algo, intentar parsear de nuevo
+                                    try {
+                                        currentCoeff = Double.parseDouble(simplified);
+                                    } catch (NumberFormatException e3) {
+                                        // Aún no es un número puro
+                                        currentCoeff = 0.0;
+                                    }
+                                } else {
+                                    // La simplificación no ayudó
                                     currentCoeff = 0.0;
                                 }
-                            } else {
-                                // La simplificación no ayudó
+                            } catch (Exception e2) {
+                                // Si la simplificación falla, retornar 0
                                 currentCoeff = 0.0;
                             }
-                        } catch (Exception e2) {
-                            // Si la simplificación falla, retornar 0
+                        } else {
+                            // No es seguro simplificar: tratar como 0
                             currentCoeff = 0.0;
                         }
                     }
@@ -238,5 +243,39 @@ public class UndeterminedCoeffResolver {
     
     public List<String> getSolvedCoeffNames() {
         return coeffNames;
+    }
+
+    /**
+     * Valida que una cadena sea segura para simplificación con Symja.
+     * Detecta patrones malformados como "(1", paréntesis desbalanceados, etc.
+     */
+    private boolean isSafeToSimplify(String s) {
+        if (s == null || s.isEmpty()) return false;
+        String trimmed = s.trim();
+        if (trimmed.isEmpty()) return false;
+        // Evitar casos que son solo un paréntesis abierto, p.ej. "(1" o "("
+        if (trimmed.matches("^\\(+\\s*\\d.*") || trimmed.matches(".*\\)\\s*$")) {
+            // permitimos si los paréntesis están balanceados
+            return isBalancedParentheses(trimmed);
+        }
+        // Comprobar balance de paréntesis en general
+        if (!isBalancedParentheses(trimmed)) return false;
+        // Evitar cadenas muy cortas o que solo contienen un signo
+        if (trimmed.equals("+") || trimmed.equals("-")) return false;
+        return true;
+    }
+
+    /**
+     * Valida que los paréntesis estén balanceados en una cadena.
+     */
+    private boolean isBalancedParentheses(String s) {
+        if (s == null) return false;
+        int balance = 0;
+        for (char c : s.toCharArray()) {
+            if (c == '(') balance++;
+            else if (c == ')') balance--;
+            if (balance < 0) return false;
+        }
+        return balance == 0;
     }
 }

@@ -301,63 +301,75 @@ public class ODESolver {
     /**
      * Extrae coeficientes de la ecuación diferencial.
      * Ejemplo: "y'' + 3*y' + 2*y = 0" → [1, 3, 2]
+     * 
+     * CRÍTICO: Usa EcuationParser que ya soporta cualquier orden
      */
     private List<Double> extractCoefficientsFromEquation(String equation, int order) {
-        List<Double> coeffs = new ArrayList<>();
-        
         try {
-            // Partir en lado izquierdo y derecho
-            String[] parts = equation.split("=");
-            String leftSide = parts[0].trim();
+            // Usar el parseador que ya soporta cualquier orden
+            EcuationParser parser = new EcuationParser();
+            com.ecuaciones.diferenciales.model.templates.ExpressionData data = parser.parse(equation);
             
-            // Para cada derivada del orden especificado hacia abajo
-            for (int i = order; i >= 0; i--) {
-                Double coeff = extractCoefficientFor(leftSide, i, order);
-                coeffs.add(coeff);
+            // Convertir Double[] a List<Double>
+            Double[] coeffArray = data.getCoefficients();
+            List<Double> coeffs = new ArrayList<>();
+            if (coeffArray != null) {
+                for (Double coeff : coeffArray) {
+                    coeffs.add(coeff);
+                }
             }
+            
+            return coeffs;
         } catch (Exception e) {
-            // Si falla la extracción, usar coeficientes por defecto
+            // Si falla, usar coeficientes por defecto
+            System.err.println("Error extrayendo coeficientes: " + e.getMessage());
+            List<Double> coeffs = new ArrayList<>();
             for (int i = 0; i <= order; i++) {
                 coeffs.add(1.0);
             }
+            return coeffs;
         }
-        
-        return coeffs;
     }
     
     /**
      * Extrae el coeficiente de una derivada específica
+     * Soporta cualquier orden: y, y', y'', y''', y^(1), y^(2), etc.
      */
     private Double extractCoefficientFor(String expression, int derivativeOrder, int maxOrder) {
-        // Patrones: y'' (orden 2), y' (orden 1), y (orden 0)
-        Pattern pattern = null;
+        // Construir el patrón para detectar el término derivativo
+        String derivativePart = null;
         
-        if (derivativeOrder == maxOrder) {
-            // Buscar y'' o y^(3) etc.
-            if (maxOrder == 2) {
-                pattern = Pattern.compile("([+-]?\\s*\\d*\\.?\\d*)\\s*\\*?\\s*y''");
-            } else if (maxOrder == 1) {
-                pattern = Pattern.compile("([+-]?\\s*\\d*\\.?\\d*)\\s*\\*?\\s*y'");
-            }
-        } else if (derivativeOrder == maxOrder - 1 && maxOrder >= 2) {
-            // Buscar y' cuando buscamos segunda derivada
-            pattern = Pattern.compile("([+-]?\\s*\\d*\\.?\\d*)\\s*\\*?\\s*y'(?!')");
-        } else if (derivativeOrder == 0) {
-            // Buscar y (sin derivada)
-            pattern = Pattern.compile("([+-]?\\s*\\d*\\.?\\d*)\\s*\\*?\\s*y(?!')");
+        if (derivativeOrder == 0) {
+            derivativePart = "y(?!')";  // y que NO sea seguido de '
+        } else if (derivativeOrder == 1) {
+            derivativePart = "y'(?!')";  // y' que NO sea seguido de '
+        } else if (derivativeOrder == 2) {
+            derivativePart = "y''(?!')";  // y'' que NO sea seguido de '
+        } else if (derivativeOrder == 3) {
+            derivativePart = "y'''(?!')";  // y''' que NO sea seguido de '
+        } else {
+            // Para cualquier orden n > 3, buscar y^(n)
+            derivativePart = "y\\^\\(" + derivativeOrder + "\\)";
         }
         
-        if (pattern != null) {
-            Matcher matcher = pattern.matcher(expression);
-            if (matcher.find()) {
-                String coeffStr = matcher.group(1).replaceAll("\\s", "");
-                if (coeffStr.isEmpty() || coeffStr.equals("+")) return 1.0;
-                if (coeffStr.equals("-")) return -1.0;
-                try {
-                    return Double.parseDouble(coeffStr);
-                } catch (NumberFormatException e) {
-                    return 1.0;
-                }
+        // Patrón: [+/- opcional][coeficiente opcional, puede ser vacío]*[derivada]
+        // Ejemplos: +3*y, -y', y'', +y^(4)
+        String pattern = "([+-]?\\s*\\d*\\.?\\d*)\\s*\\*?\\s*" + derivativePart;
+        Pattern p = Pattern.compile(pattern);
+        Matcher m = p.matcher(expression);
+        
+        if (m.find()) {
+            String coeffStr = m.group(1).replaceAll("\\s", "");
+            
+            // Si está vacío o es solo "+", coeficiente = 1
+            if (coeffStr.isEmpty() || coeffStr.equals("+")) return 1.0;
+            // Si es solo "-", coeficiente = -1
+            if (coeffStr.equals("-")) return -1.0;
+            
+            try {
+                return Double.parseDouble(coeffStr);
+            } catch (NumberFormatException e) {
+                return 1.0;
             }
         }
         

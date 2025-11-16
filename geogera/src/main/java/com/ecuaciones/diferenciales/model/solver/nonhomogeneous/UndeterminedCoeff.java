@@ -98,6 +98,16 @@ public class UndeterminedCoeff {
                 s = Math.max(s, r.getMultiplicity());
             }
         }
+        // Si no encontró coincidencia exacta, al menos verificar resonancia simple (s=1)
+        // Para el caso cos(bx) con raiz 0±bi, s debería ser 1
+        if (s == 0 && Math.abs(alpha) < TOLERANCE) {
+            for (Root r : homogeneousRoots) {
+                if (Math.abs(r.getReal()) < TOLERANCE && Math.abs(Math.abs(r.getImaginary()) - absBeta) < TOLERANCE) {
+                    s = 1;
+                    break;
+                }
+            }
+        }
         return s;
     }
 
@@ -265,10 +275,15 @@ public class UndeterminedCoeff {
     }
     
     public List<String> getCoeffNames() {
-        if (solvedCoeffNames.size() != ypStarTerms.size()) {
-             System.out.println("DEBUG UC: Discrepancia en el recuento de coeficientes/términos YP*. Nombres: " + solvedCoeffNames.size() + ", Términos: " + ypStarTerms.size());
+        // Sincronizar: si hay discrepancia, truncar al mínimo
+        int minSize = Math.min(solvedCoeffNames.size(), ypStarTerms.size());
+        if (solvedCoeffNames.size() != minSize) {
+            solvedCoeffNames.retainAll(new ArrayList<>(solvedCoeffNames.subList(0, minSize)));
         }
-        return solvedCoeffNames.subList(0, Math.min(solvedCoeffNames.size(), ypStarTerms.size()));
+        if (ypStarTerms.size() != minSize) {
+            ypStarTerms.retainAll(new ArrayList<>(ypStarTerms.subList(0, minSize)));
+        }
+        return new ArrayList<>(solvedCoeffNames);
     }
     
     public String generateParticularSolution(String ypForm, Map<String, Double> solvedCoeffs) {

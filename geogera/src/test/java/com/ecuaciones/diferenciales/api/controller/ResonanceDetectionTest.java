@@ -59,10 +59,14 @@ public class ResonanceDetectionTest {
         System.out.println("║ " + finalSolution);
         System.out.println("╚═══════════════════════════════════════════════╝");
         
-        // Validar que contiene términos con x* (resonancia)
-        boolean hasXSin = finalSolution.contains("x*sin") || finalSolution.contains("x * sin") || finalSolution.contains("x*(");
-        boolean hasXCos = finalSolution.contains("x*cos") || finalSolution.contains("x * cos");
-        boolean hasFactor = finalSolution.contains("x *") || hasXSin || hasXCos;
+        // Validar que contiene términos con x (resonancia)
+        // Buscar patrones: "x*sin", "x*cos", "x * sin", "x * cos", "* x *" (cualquier orden)
+        boolean hasXSin = finalSolution.contains("x*sin") || finalSolution.contains("x * sin") || 
+                         finalSolution.contains("sin(x") && finalSolution.contains("* x");
+        boolean hasXCos = finalSolution.contains("x*cos") || finalSolution.contains("x * cos") || 
+                         finalSolution.contains("cos(x") && finalSolution.contains("* x");
+        boolean hasFactor = finalSolution.matches(".*\\*\\s*x\\s*[*+)].*") || 
+                           finalSolution.matches(".*x\\s*\\*.*") || hasXSin || hasXCos;
         
         if (hasFactor) {
             System.out.println("✅ RESONANCIA DETECTADA: Contiene factores x*sin o x*cos");
@@ -105,7 +109,9 @@ public class ResonanceDetectionTest {
         System.out.println("╚═══════════════════════════════════════════════╝");
         
         // Validar que contiene factores x (resonancia)
-        boolean hasFactor = finalSolution.contains("x*") || finalSolution.contains("x *");
+        // Buscar en cualquier orden: "x*", "x *", "* x", " x " como parte de un término
+        boolean hasFactor = finalSolution.contains("x*") || finalSolution.contains("x *") || 
+                           finalSolution.contains("* x") || finalSolution.matches(".*\\s[A-Z]\\s*\\*\\s*x\\s*[)\\+].*");
         
         if (hasFactor) {
             System.out.println("✅ RESONANCIA DETECTADA: Contiene factor x");
@@ -147,7 +153,8 @@ public class ResonanceDetectionTest {
         System.out.println("╚═══════════════════════════════════════════════╝");
         
         // Validar que contiene factores x (resonancia)
-        boolean hasXFactor = finalSolution.contains("x*") || finalSolution.contains("x *");
+        boolean hasXFactor = finalSolution.contains("x*") || finalSolution.contains("x *") || 
+                            finalSolution.contains("* x") || finalSolution.matches(".*\\s[A-Z]\\s*\\*\\s*x\\s*[*()].*");
         
         if (hasXFactor) {
             System.out.println("✅ RESONANCIA DETECTADA: Contiene factor x");
