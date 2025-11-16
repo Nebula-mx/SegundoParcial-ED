@@ -4,7 +4,6 @@ import org.matheclipse.core.eval.ExprEvaluator;
 import org.matheclipse.core.expression.F;
 import org.matheclipse.core.interfaces.IExpr;
 import org.matheclipse.core.interfaces.ISymbol;
-import com.ecuaciones.diferenciales.api.dto.ExpressionData;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -263,57 +262,5 @@ public class SymjaEngine {
             return F.Null;
         }
     }
-    
-    // --- 7. Resolver EDO desde Servlet ---
-    
-    /**
-     * Método para que el servlet de tu amigo resuelva EDOs directamente.
-     * Recibe una instancia de ExpressionData con la ecuación diferencial.
-     * 
-     * Ejemplo de uso en servlet:
-     * <pre>
-     * ExpressionData data = new ExpressionData();
-     * data.setEquation("y'' + 4*y = 0");
-     * data.setInitialConditions(Arrays.asList("y(0)=1", "y'(0)=0"));
-     * data.setVariable("x");
-     * 
-     * String solution = SymjaEngine.solveODE(data);
-     * </pre>
-     */
-    public static String solveODE(ExpressionData expressionData) {
-        if (expressionData == null || !expressionData.isValid()) {
-            return "{\"status\":\"ERROR\",\"message\":\"ExpressionData inválido\"}";
-        }
-        
-        try {
-            // Aquí puedes integrar con tu motor de resolución de ODEs
-            String equation = expressionData.getEquation();
-            List<String> initialConditions = expressionData.getInitialConditions();
-            String variable = expressionData.getVariable();
-            
-            // Log para debugging
-            System.out.println("[SymjaEngine] Resolviendo ODE: " + equation);
-            System.out.println("[SymjaEngine] Condiciones iniciales: " + initialConditions);
-            System.out.println("[SymjaEngine] Variable: " + variable);
-            
-            // TODO: Aquí iría la integración con tu motor de resolución
-            // Por ahora, retorna un placeholder JSON
-            String response = "{" +
-                "\"status\":\"SUCCESS\"," +
-                "\"message\":\"Ecuación resuelta exitosamente\"," +
-                "\"equation\":\"" + equation + "\"," +
-                "\"variable\":\"" + variable + "\"," +
-                "\"initialConditions\":" + initialConditions.toString() + "," +
-                "\"finalSolution\":\"y(x) = C₁*e^(r₁x) + C₂*e^(r₂x)\"," +
-                "\"executionTimeMs\":0," +
-                "\"success\":true" +
-            "}";
-            
-            return response;
-        } catch (Exception e) {
-            System.err.println("Error resolviendo ODE: " + e.getMessage());
-            e.printStackTrace();
-            return "{\"status\":\"ERROR\",\"message\":\"" + e.getMessage() + "\"}";
-        }
-    }
 }
+    
