@@ -188,14 +188,6 @@ Incluye:
 
 ---
 
-## 👨‍💻 Autor
-
-Hector A.R.  
-Segundo Parcial - Ecuaciones Diferenciales  
-Noviembre 2025
-
----
-
 ## 📝 Licencia
 
 Proyecto académico - Uso educativo
