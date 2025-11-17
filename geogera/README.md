@@ -1,7 +1,7 @@
 # 📐 GEOGERA - Solucionador de Ecuaciones Diferenciales Ordinarias
 
-**Nivel Académico**: Posgrado (Maestría)  
-**Tecnología**: Spring Boot 3.2.0 + Java 21  
+**Nivel Académico**: Licenciatura  
+**Tecnología**: Spring Boot 3.2.0 + Java 17  
 **Estado**: ✅ Producción-Ready  
 **Versión**: 1.0 Final
 

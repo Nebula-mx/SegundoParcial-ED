@@ -1,23 +1,12 @@
-//codigo para iniciar la UI en java fx
+//código para iniciar la aplicación de consola
 
 package com.ecuaciones.diferenciales.model;
-import javafx.application.Application;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Scene;
-import javafx.stage.Stage;
-import java.io.IOException;
-/** 
- * JavaFX App 
- */
-public class App extends Application {
-    private static Scene scene;
 
-    @Override
-    public void start(Stage stage) throws IOException {
-        FXMLLoader fxmlLoader = new FXMLLoader(App.class.getResource("primary.fxml"));
-        scene = new Scene(fxmlLoader.load(), 800, 600);
-        stage.setTitle("Ecuaciones Diferenciales");
-        stage.setScene(scene);
-        stage.show();
+/** 
+ * App - Clase principal para la aplicación de consola
+ */
+public class App {
+    public static void main(String[] args) {
+        System.out.println("Aplicación iniciada. Usa la clase Main para resolver ecuaciones.");
     }
 }

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -15,14 +16,14 @@
     </properties>
 
     <dependencies>
-        <!-- Dependencia sobre el módulo core (debe estar instalado en el repo local) -->
+        <!-- Dependencia sobre el módulo core -->
         <dependency>
             <groupId>com.ecuaciones.diferenciales</groupId>
             <artifactId>geogera</artifactId>
             <version>0.1</version>
         </dependency>
 
-        <!-- Servlet API (provisto por el contenedor/runtime) -->
+        <!-- Servlet API -->
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
@@ -30,12 +31,26 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- JSP API (provisto por el contenedor) -->
+        <!-- JSP API -->
         <dependency>
             <groupId>jakarta.servlet.jsp</groupId>
             <artifactId>jakarta.servlet.jsp-api</artifactId>
             <version>3.0.0</version>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- SLF4J para logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.36</version>
+        </dependency>
+
+        <!-- SLF4J Simple implementation -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>1.7.36</version>
         </dependency>
 
     </dependencies>
@@ -54,8 +69,27 @@
                     <httpConnector>
                         <port>${jetty.port}</port>
                     </httpConnector>
+                    <webApp>
+                        <resourceBases>
+                            <resourceBase>${project.basedir}/src/main/webapp</resourceBase>
+                        </resourceBases>
+                    </webApp>
                 </configuration>
+                <dependencies>
+                    <!-- SLF4J para Jetty -->
+                    <dependency>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-api</artifactId>
+                        <version>1.7.36</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-simple</artifactId>
+                        <version>1.7.36</version>
+                    </dependency>
+                </dependencies>
             </plugin>
         </plugins>
     </build>
+
 </project>

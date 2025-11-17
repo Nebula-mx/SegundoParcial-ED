@@ -3,13 +3,10 @@ package com.ecuaciones.diferenciales;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-<<<<<<< HEAD
 import java.util.Scanner;
-=======
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.regex.Pattern;
->>>>>>> a61f68bd38e5da957a670474630634a90695161d
 
 import com.ecuaciones.diferenciales.model.EcuationParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,12 +28,8 @@ public class Main {
     private static final String SEPARATOR_END = "╚════════════════════════════════════════════════════════════╝";
     
     public static void main(String[] args) {
-<<<<<<< HEAD
         EcuationParser parser = new EcuationParser(); 
         ExpressionData data = null; 
-=======
-        EcuationParser parser = new EcuationParser();
->>>>>>> a61f68bd38e5da957a670474630634a90695161d
         
         try (Scanner scanner = new Scanner(System.in)) {
             mostrarMenuPrincipal();
