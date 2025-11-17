@@ -16,6 +16,7 @@ import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.UndeterminedCoef
 import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.VariationOfParametersSolverV2;
 import com.ecuaciones.diferenciales.model.templates.ExpressionData;
 import com.ecuaciones.diferenciales.model.variation.WronskianCalculator;
+import com.ecuaciones.diferenciales.model.solver.InitialConditionsSolver;
 
 /**
  * Servicio de resolución de ecuaciones diferenciales que retorna JSON
@@ -185,9 +186,9 @@ public class EquationSolverService {
                     } catch (ArithmeticException e) {
                         // Sistema singular - resonancia
                         steps.add("⚠️ Sistema singular (RESONANCIA detectada)");
-                        steps.add("UC resuelve la resonancia analíticamente");
-                        metodoPrincipalFallo = false;
-                        method_used = "UC (con resonancia)";
+                        steps.add("Intentando Variación de Parámetros como fallback...");
+                        metodoPrincipalFallo = true;  // CORRECCIÓN: Permite fallback a VP
+                        method_used = "UC (con resonancia -> VP)";
                         
                     } catch (Exception e) {
                         metodoPrincipalFallo = true;
@@ -252,10 +253,49 @@ public class EquationSolverService {
             resultado.put("finalSolution", finalSolution);
             resultado.put("finalSolutionLatex", latexFormat(finalSolution));
             
-            // Condiciones iniciales
+            // NUEVA SECCIÓN: Aplicar Condiciones Iniciales (PVI)
+            Map<String, Object> pviInfo = new HashMap<>();
             if (condicionesIniciales != null && !condicionesIniciales.isEmpty()) {
                 resultado.put("initialConditions", condicionesIniciales);
+                
+                try {
+                    // Parsear condiciones iniciales
+                    List<InitialConditionsSolver.InitialCondition> parsedConditions = 
+                        InitialConditionsSolver.parseConditions(condicionesIniciales);
+                    
+                    // Crear solver con la solución general
+                    InitialConditionsSolver pviSolver = 
+                        new InitialConditionsSolver(finalSolution, order);
+                    
+                    // Resolver constantes C_i
+                    Map<String, Double> constants = pviSolver.solveInitialConditions(parsedConditions);
+                    
+                    // Sustituir constantes en la solución
+                    String particularSolution = substituteConstants(finalSolution, constants);
+                    
+                    pviInfo.put("particularSolution", particularSolution);
+                    pviInfo.put("particularSolutionLatex", latexFormat(particularSolution));
+                    pviInfo.put("constants", constants);
+                    pviInfo.put("appliedInitialConditions", true);
+                    pviInfo.put("status", "SOLVED");
+                    
+                    // Usar la solución particular como respuesta final
+                    resultado.put("particularSolution", particularSolution);
+                    resultado.put("particularSolutionLatex", latexFormat(particularSolution));
+                    resultado.put("constants", constants);
+                    
+                } catch (Exception e) {
+                    pviInfo.put("appliedInitialConditions", false);
+                    pviInfo.put("status", "ERROR");
+                    pviInfo.put("error", e.getMessage());
+                    resultado.put("pviWarning", "No se pudieron aplicar todas las condiciones iniciales: " + e.getMessage());
+                }
+            } else {
+                pviInfo.put("appliedInitialConditions", false);
+                pviInfo.put("status", "NO_CONDITIONS");
             }
+            
+            resultado.put("pvi", pviInfo);
             
             // Status de éxito
             resultado.put("status", "SUCCESS");
@@ -299,6 +339,44 @@ public class EquationSolverService {
         latex = latex.replace("tan(", "\\tan(");
         
         return latex;
+    }
+    
+    /**
+     * Sustituye las constantes C_i en una solución general por sus valores numéricos
+     * 
+     * @param solution Solución general con C1, C2, ..., Cn
+     * @param constants Mapa de valores: {C1: 3.5, C2: -2.1, ...}
+     * @return Solución particular con valores numéricos
+     */
+    private String substituteConstants(String solution, Map<String, Double> constants) {
+        String result = solution;
+        
+        // Sustituir cada constante por su valor
+        for (Map.Entry<String, Double> entry : constants.entrySet()) {
+            String constName = entry.getKey();
+            Double constValue = entry.getValue();
+            
+            // Formatear el valor
+            String valueStr;
+            if (Math.abs(constValue - Math.round(constValue)) < 1e-9) {
+                valueStr = String.valueOf((long)Math.round(constValue));
+            } else {
+                valueStr = String.format("%.4f", constValue);
+            }
+            
+            // Reemplazar C_i por el valor (con manejo de signos)
+            result = result.replace(constName + "*", valueStr + "*");
+            result = result.replace(constName + "+", valueStr + "+");
+            result = result.replace(constName + "-", valueStr + "-");
+            result = result.replace("(" + constName, "(" + valueStr);
+            result = result.replace(" " + constName, " " + valueStr);
+        }
+        
+        // Limpiar paréntesis vacíos o innecesarios
+        result = result.replaceAll("\\(\\s*\\)", "");
+        result = result.replaceAll("\\s+", " ").trim();
+        
+        return result;
     }
     
     /**

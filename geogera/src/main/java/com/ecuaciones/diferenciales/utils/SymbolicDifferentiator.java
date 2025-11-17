@@ -218,4 +218,13 @@ public class SymbolicDifferentiator {
             return false;
         }
     }
+
+    /**
+     * Extrae el coeficiente de un término en una expresión
+     * Ejemplo: extractCoeff("2*x + 3*x^2", "x") → 2.0
+     * Delega a SymjaEngine para evitar duplicación de lógica
+     */
+    public static double extractCoeff(String expression, String term) {
+        return SymjaEngine.extractCoefficient(expression, term);
+    }
 }

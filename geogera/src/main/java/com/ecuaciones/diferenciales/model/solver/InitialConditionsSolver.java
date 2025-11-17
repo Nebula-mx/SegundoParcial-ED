@@ -74,7 +74,7 @@ public class InitialConditionsSolver {
         
         // Patrón 1: e^(3x) → e^(3*x) 
         // (?i) ignora mayúsculas/minúsculas (e ó E)
-        expr = expr.replaceAll("(?i)e\\^\\((\\d+)\\s*([a-zA-Z])", "e^($1*$2)");
+        expr = expr.replaceAll("(?i)e\\^\\((\\d+)\\s*([a-zA-Z])\\)", "e^($1*$2)");
         
         // Patrón 2: e^(x) → e^(1*x)
         expr = expr.replaceAll("(?i)e\\^\\(([a-zA-Z])\\)(?!\\*)", "e^(1*$1)");
@@ -83,7 +83,7 @@ public class InitialConditionsSolver {
         expr = expr.replaceAll("(?i)e\\^\\(-\\s*([a-zA-Z])\\)", "e^(-1*$1)");
         
         // Patrón 4: e^(-2x) → e^(-2*x)
-        expr = expr.replaceAll("(?i)e\\^\\(-\\s*(\\d+)\\s*([a-zA-Z])", "e^(-$1*$2)");
+        expr = expr.replaceAll("(?i)e\\^\\(-\\s*(\\d+)\\s*([a-zA-Z])\\)", "e^(-$1*$2)");
         
         // Patrón 5: Eliminar espacios alrededor de *
         expr = expr.replaceAll("\\s*\\*\\s*", "*");
@@ -338,8 +338,7 @@ public class InitialConditionsSolver {
                 functions.add(funcPart);
             }
         }
-
-        return functions;
+                return functions;
     }
 
     /**

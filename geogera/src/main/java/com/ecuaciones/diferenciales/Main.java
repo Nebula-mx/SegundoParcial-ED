@@ -150,9 +150,10 @@ public class Main {
             System.out.println("   y_h(x) = " + solution_h);
 
             // --- FASE DE SOLUCIÓN PARTICULAR (y_p) ---
+            String solution_p = null;  // Declarar a nivel superior para usarlo en PVI
             if (!data.getIsHomogeneous()) {
                 String g_x = data.getIndependentTerm().get("g(x)");
-                String solution_p = "";
+                solution_p = "";
 
                 System.out.println("\n╔════════════════════════════════════════════════════════════╗");
                 System.out.println("║        PASO 2: SOLUCIÓN PARTICULAR (y_p)                  ║");
@@ -274,8 +275,19 @@ public class Main {
                 }
                 
                 try {
-                    // Crear solver de CI
-                    InitialConditionsSolver ciSolver = new InitialConditionsSolver(solution_h, order);
+                    // Construir la solución general COMPLETA (y_h + y_p) para pasar al solver
+                    String generalSolutionComplete;
+                    if (!data.getIsHomogeneous() && solution_p != null && !solution_p.startsWith("ERROR")) {
+                        String cleanedYpForCI = solution_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
+                        // Construir sin "y(x) = " porque InitialConditionsSolver lo añade internamente
+                        generalSolutionComplete = "(" + solution_h + ") + (" + cleanedYpForCI + ")";
+                    } else {
+                        // Solo solución homogénea
+                        generalSolutionComplete = solution_h;
+                    }
+                    
+                    // Crear solver de CI con la solución general COMPLETA
+                    InitialConditionsSolver ciSolver = new InitialConditionsSolver(generalSolutionComplete, order);
                     
                     // Parsear condiciones
                     List<InitialConditionsSolver.InitialCondition> parsedConditions = 
@@ -291,7 +303,7 @@ public class Main {
                         System.out.println("         " + entry.getKey() + " = " + formatted);
                     }
                     
-                    // Aplicar constantes a la solución
+                    // Aplicar constantes a la solución general completa
                     String particularSolution = ciSolver.applyConstants(solvedConstants);
                     
                     System.out.println("\n╔════════════════════════════════════════════════════════════╗");
@@ -302,6 +314,7 @@ public class Main {
                 } catch (Exception e) {
                     System.out.println("\n   ⚠️  No se pudieron aplicar las CI: " + e.getMessage());
                     System.out.println("       La solución general sigue siendo válida.");
+                    e.printStackTrace();  // Mostrar stack trace para debugging
                 }
             }
             
@@ -644,7 +657,8 @@ public class Main {
             String finalSolution;
             if (!data.getIsHomogeneous() && solution_p != null && !solution_p.startsWith("ERROR")) {
                 String cleanedYp = solution_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
-                finalSolution = "y(x) = (" + solution_h + ") + (" + cleanedYp + ")";
+                // No agregar paréntesis extra si no son necesarios
+                finalSolution = "y(x) = " + solution_h + " + " + cleanedYp;
             } else {
                 finalSolution = "y(x) = " + solution_h;
             }
@@ -655,7 +669,10 @@ public class Main {
             // APLICAR CONDICIONES INICIALES SI LAS HAY
             if (!condicionesIniciales.isEmpty()) {
                 try {
-                    InitialConditionsSolver ciSolver = new InitialConditionsSolver(solution_h, order);
+                    // Preparar la solución completa (y_h + y_p) para pasar a InitialConditionsSolver
+                    String generalSolutionString = finalSolution.replace("y(x) = ", "").trim();
+                    
+                    InitialConditionsSolver ciSolver = new InitialConditionsSolver(generalSolutionString, order);
                     List<InitialConditionsSolver.InitialCondition> parsedConditions = 
                         InitialConditionsSolver.parseConditions(condicionesIniciales);
                     
@@ -669,16 +686,11 @@ public class Main {
                         }
                         resultado.put("constants", constantsMap);
                         
-                        // Aplicar constantes a la solución homogénea
+                        // Aplicar constantes a la solución completa
                         String particularSolution = ciSolver.applyConstants(solvedConstants);
                         
-                        // Actualizar solución final si es no-homogénea
-                        if (!data.getIsHomogeneous() && solution_p != null && !solution_p.startsWith("ERROR")) {
-                            String cleanedYp = solution_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
-                            finalSolution = "y(x) = (" + particularSolution + ") + (" + cleanedYp + ")";
-                        } else {
-                            finalSolution = "y(x) = " + particularSolution;
-                        }
+                        // Actualizar solución final con las constantes aplicadas
+                        finalSolution = "y(x) = " + particularSolution;
                         
                         resultado.put("finalSolution", finalSolution);
                         resultado.put("solutionLatex", toLatex(finalSolution));

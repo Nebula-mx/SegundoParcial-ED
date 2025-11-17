@@ -199,7 +199,9 @@ public class PolynomialSolver {
      */
     private static Root parseSymjaRoot(IExpr expr) {
         try {
-            String exprStr = expr.toString();
+            String exprStr = expr.toString().trim();
+            
+            System.out.println("    [DEBUG parseRoot] Parsing: " + exprStr);
             
             // Si es solo un número real
             if (!exprStr.contains("I")) {
@@ -207,33 +209,60 @@ public class PolynomialSolver {
                 return new Root(real, 0.0, 1);
             }
             
-            // Si contiene I (unidad imaginaria): a+b*I o a-b*I
-            // Ejemplo: "1/2 + I*Sqrt[3]/2" o "3 + 4*I"
+            // Si contiene I (unidad imaginaria): a+b*I o a-b*I o I*b o (-I*b)
+            // Ejemplos: "1/2 + I*Sqrt[3]/2", "3 + 4*I", "I*1.0", "(-I*1.0)"
             double realPart = 0.0;
             double imagPart = 0.0;
             
-            // Formato simplificado: "a + b*I"
-            if (exprStr.contains("+") && exprStr.contains("*I")) {
+            // Caso 1: Formato "I*valor" o "(-I*valor)"
+            if (exprStr.startsWith("(") && exprStr.contains("I*")) {
+                // Formato: "(-I*1.0)" o "(I*1.0)"
+                exprStr = exprStr.replaceAll("[()]", "").trim();
+                if (exprStr.startsWith("-I*")) {
+                    imagPart = -Double.parseDouble(exprStr.substring(3).trim());
+                } else if (exprStr.startsWith("I*")) {
+                    imagPart = Double.parseDouble(exprStr.substring(2).trim());
+                }
+                System.out.println("    [DEBUG parseRoot] Caso 1 (puro imaginario): imagPart=" + imagPart);
+            }
+            // Caso 2: Formato "a + b*I"
+            else if (exprStr.contains("+") && exprStr.contains("*I")) {
                 String[] parts = exprStr.split("\\+");
                 realPart = Double.parseDouble(parts[0].trim());
-                imagPart = Double.parseDouble(parts[1].trim().replace("*I", ""));
-            } else if (exprStr.contains("-") && exprStr.contains("*I")) {
+                imagPart = Double.parseDouble(parts[1].trim().replace("*I", "").trim());
+                System.out.println("    [DEBUG parseRoot] Caso 2 (a+bi): realPart=" + realPart + ", imagPart=" + imagPart);
+            } 
+            // Caso 3: Formato "a - b*I"
+            else if (exprStr.contains("-") && exprStr.contains("*I")) {
                 int lastMinus = exprStr.lastIndexOf("-");
                 if (lastMinus > 0) {
                     realPart = Double.parseDouble(exprStr.substring(0, lastMinus).trim());
                     imagPart = -Double.parseDouble(exprStr.substring(lastMinus + 1).trim().replace("*I", ""));
+                    System.out.println("    [DEBUG parseRoot] Caso 3 (a-bi): realPart=" + realPart + ", imagPart=" + imagPart);
                 } else {
-                    imagPart = Double.parseDouble(exprStr.replace("*I", ""));
+                    imagPart = -Double.parseDouble(exprStr.substring(1).trim().replace("*I", ""));
+                    System.out.println("    [DEBUG parseRoot] Caso 3b (-bi): imagPart=" + imagPart);
                 }
-            } else if (exprStr.contains("I")) {
-                // Solo imaginario: I, 2*I, etc
-                imagPart = Double.parseDouble(exprStr.replace("*I", "").replace("I", "1"));
+            } 
+            // Caso 4: Solo imaginario: "I", "2*I", etc
+            else if (exprStr.contains("I")) {
+                String imgStr = exprStr.replace("*I", "").replace("I", "").trim();
+                if (imgStr.isEmpty()) {
+                    imagPart = 1.0;
+                } else if (imgStr.equals("-")) {
+                    imagPart = -1.0;
+                } else {
+                    imagPart = Double.parseDouble(imgStr);
+                }
+                System.out.println("    [DEBUG parseRoot] Caso 4 (solo imaginario): imagPart=" + imagPart);
             }
             
+            System.out.println("    [DEBUG parseRoot] Resultado: " + realPart + " + " + imagPart + "i");
             return new Root(realPart, imagPart, 1);
             
         } catch (Exception e) {
             System.err.println("Error parseando raíz: " + expr.toString());
+            e.printStackTrace();
             return new Root(0.0, 0.0, 1);
         }
     }

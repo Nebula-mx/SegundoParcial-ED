@@ -34,6 +34,7 @@ public class SymjaEngine {
         result = result.replaceAll("(?i)exp\\(", "Exp[");
         result = result.replaceAll("(?i)ln\\(", "Log[");
         result = result.replaceAll("(?i)log\\(", "Log[");
+        result = result.replaceAll("(?i)sqrt\\(", "Sqrt[");
         
         // PASO 2: Cerrar brackets para funciones
         result = closeMatchingBrackets(result);
@@ -189,8 +190,8 @@ public class SymjaEngine {
             String numericCommand = "N[" + substituted.toString() + "]";
             IExpr numeric = EVALUATOR.eval(numericCommand);
             
-            // Paso 3: Parsear como double
-            return Double.parseDouble(numeric.toString());
+            // Paso 3: Usar evalDouble() de Symja (maneja fracciones como 1/2, raíces, etc.)
+            return numeric.evalDouble();
         } catch (NumberFormatException nfe) {
             System.err.println("  [Error numérico] No se pudo evaluar '" + expression + "' en x=" + xValue);
             System.err.println("  Resultado Symja: " + symjaSyntax);
@@ -255,12 +256,12 @@ public class SymjaEngine {
             String coeffCommand = "Coefficient[" + symjaExpr + ", " + symjaTerm + "]";
             IExpr result = EVALUATOR.eval(coeffCommand);
             
-            // Intentar obtener el valor numérico
-            try {
-                return Double.parseDouble(result.toString());
-            } catch (NumberFormatException nfe) {
-                return 0.0;
-            }
+            // Convertir el coeficiente a formato numérico con N[]
+            String numericCommand = "N[" + result.toString() + "]";
+            IExpr numeric = EVALUATOR.eval(numericCommand);
+            
+            // Usar evalDouble() para manejar fracciones, raíces, etc.
+            return numeric.evalDouble();
         } catch (Exception e) {
             return 0.0;
         }
