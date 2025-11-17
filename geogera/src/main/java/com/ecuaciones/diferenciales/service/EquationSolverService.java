@@ -211,11 +211,11 @@ public class EquationSolverService {
                         }
                         
                     } catch (ArithmeticException e) {
-                        // Sistema singular - resonancia
+                        // Sistema singular - resonancia que UC no puede resolver
+                        // Hacer fallback a VP
                         steps.add("⚠️ Sistema singular (RESONANCIA detectada)");
-                        steps.add("Intentando Variación de Parámetros como fallback...");
-                        metodoPrincipalFallo = true;  // CORRECCIÓN: Permite fallback a VP
-                        method_used = "UC (con resonancia -> VP)";
+                        steps.add("Switcheando a Variación de Parámetros...");
+                        metodoPrincipalFallo = true;  // Sí es un fallo, permitir fallback a VP
                         
                     } catch (Exception e) {
                         metodoPrincipalFallo = true;

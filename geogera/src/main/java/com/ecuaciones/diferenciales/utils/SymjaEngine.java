@@ -18,6 +18,33 @@ public class SymjaEngine {
 
     // --- 1. Utilidad de Sintaxis (Conversión a Symja: sin(x) -> Sin[x]) ---
 
+    /**
+     * Convierte la salida de Symja de vuelta a nuestro formato estándar.
+     * Symja retorna: E^x, Sin[x], Cos[x], Exp[x], etc.
+     * Nosotros usamos: e^(x), sin(x), cos(x), etc.
+     */
+    public static String convertFromSymjaSyntax(String symjaOutput) {
+        String result = symjaOutput;
+        
+        // Paso 1: Convertir funciones trigonométricas Symja a nuestro formato
+        result = result.replaceAll("Sin\\[([^\\]]+)\\]", "sin($1)");
+        result = result.replaceAll("Cos\\[([^\\]]+)\\]", "cos($1)");
+        result = result.replaceAll("Tan\\[([^\\]]+)\\]", "tan($1)");
+        result = result.replaceAll("Exp\\[([^\\]]+)\\]", "e^($1)");
+        result = result.replaceAll("Log\\[([^\\]]+)\\]", "ln($1)");
+        result = result.replaceAll("Sqrt\\[([^\\]]+)\\]", "sqrt($1)");
+        
+        // Paso 2: Convertir E^x (salida Symja) a e^(x)
+        result = result.replaceAll("E\\^\\(([^\\)]+)\\)", "e^($1)");
+        result = result.replaceAll("E\\^([a-z])", "e^($1)");
+        
+        // Paso 3: Convertir E (número de Euler) a e si aparece aislado
+        // Pero evitar reemplazar E dentro de "Exp" o "E^"
+        result = result.replaceAll("\\bE\\b", "e");
+        
+        return result;
+    }
+
     public static String convertToSymjaSyntax(String mathString) {
         String result = mathString;
         
@@ -248,23 +275,59 @@ public class SymjaEngine {
 
     // --- 4. Extracción de Coeficientes (Usado en CI) ---
 
-    public static double extractCoefficient(String expression, String functionalTerm) {
+    /**
+     * Extrae el coeficiente simbólico de `functionalTerm` en `expression` usando división rápida.
+     * Ej: expression="E^x*(1+x)" functionalTerm="E^x" -> returns "1+x"
+     * RÁPIDO: sin Collect (que es lento), solo división directa.
+     */
+    public static String extractCoefficientExpr(String expression, String functionalTerm) {
         String symjaExpr = convertToSymjaSyntax(expression);
         String symjaTerm = convertToSymjaSyntax(functionalTerm);
         try {
-            // Comando: Coefficient[expresión, término]
-            String coeffCommand = "Coefficient[" + symjaExpr + ", " + symjaTerm + "]";
-            IExpr result = EVALUATOR.eval(coeffCommand);
-            
-            // Convertir el coeficiente a formato numérico con N[]
-            String numericCommand = "N[" + result.toString() + "]";
-            IExpr numeric = EVALUATOR.eval(numericCommand);
-            
-            // Usar evalDouble() para manejar fracciones, raíces, etc.
-            return numeric.evalDouble();
+            // División rápida: (expr) / (term) = coeff
+            String divisionCommand = "(" + symjaExpr + ") / (" + symjaTerm + ")";
+            IExpr quotient = EVALUATOR.eval(divisionCommand);
+            return quotient.toString();
         } catch (Exception e) {
-            return 0.0;
+            return "0";
         }
+    }
+
+    /**
+     * Simplifica una expresión Symja y trata de evaluarla numéricamente. Si la
+     * expresión resulta en una constante devuelve su valor double; si contiene
+     * símbolos (por ejemplo 'x') devuelve Double.NaN SIN CUELGUES.
+     */
+    public static double simplifyAndEvalDouble(String symjaExpression) {
+        try {
+            // Primero: chequear si contiene variables (x, y, etc.) sin esperar
+            if (symjaExpression.matches(".*[a-zA-Z]+.*")) {
+                // Contiene letras: probablemente variable
+                return Double.NaN;
+            }
+            
+            // Solo si parece numérica, evaluar
+            String numericCommand = "N[" + symjaExpression + "]";
+            IExpr numeric = EVALUATOR.eval(numericCommand);
+            try {
+                return numeric.evalDouble();
+            } catch (Exception e) {
+                return Double.NaN;
+            }
+        } catch (Exception e) {
+            return Double.NaN;
+        }
+    }
+
+    /**
+     * Backwards compatible helper used por callers previos; intenta extraer y evaluar
+     * numéricamente el coeficiente. Si no es numérico devuelve 0.0
+     */
+    public static double extractCoefficient(String expression, String functionalTerm) {
+        String coeffExpr = extractCoefficientExpr(expression, functionalTerm);
+        double val = simplifyAndEvalDouble(coeffExpr);
+        if (Double.isNaN(val)) return 0.0;
+        return val;
     }
     
     // --- 5. Determinante (Usado en VdP) ---

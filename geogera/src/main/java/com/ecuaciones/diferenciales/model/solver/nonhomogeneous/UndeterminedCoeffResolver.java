@@ -1,14 +1,13 @@
 package com.ecuaciones.diferenciales.model.solver.nonhomogeneous;
 
 import com.ecuaciones.diferenciales.model.templates.ExpressionData;
-import com.ecuaciones.diferenciales.utils.LinearSystemSolver; 
+import com.ecuaciones.diferenciales.utils.LinearSystemSolver;
 import com.ecuaciones.diferenciales.utils.SymbolicDifferentiator;
+import com.ecuaciones.diferenciales.utils.SymjaEngine;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.ArrayList;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
 
 /**
  * Resuelve los coeficientes de la forma y_p* (A, B, C, ...) y genera el sistema lineal A|b.
@@ -27,7 +26,6 @@ public class UndeterminedCoeffResolver {
     private final String gX;
     
     private static final double TOLERANCE = 1e-9;
-    private static final String MARKER = "@@@"; 
 
     public UndeterminedCoeffResolver(ExpressionData data, UndeterminedCoeff ucSolver) {
         this.data = data;
@@ -40,128 +38,7 @@ public class UndeterminedCoeffResolver {
         this.baseUCTerms = ucSolver.getBaseUCTerms(); // Términos Base (Filas)
         this.ypStarTerms = ucSolver.getYpStarTerms(); // Términos Propuestos (Columnas)
     }
-
-    // ----------------------- FUNCIÓN DE EXTRACCIÓN CENTRAL (ROBUSTA) --------------------------
     
-    /**
-     * Normaliza expresiones exponenciales para comparación consistente.
-     * e^(x), E^x, Exp(x), Exp[x] se tratan como lo mismo
-     */
-    private String normalizeExponentials(String expr) {
-        // Primero, convertir todas las notaciones a e^(...)
-        expr = expr.replaceAll("[Ee]\\^\\(([^)]+)\\)", "e^($1)");
-        expr = expr.replaceAll("[Ee]\\^([^\\(\\+\\-\\*\\/\\s]+)", "e^($1)");
-        expr = expr.replaceAll("Exp\\[([^\\]]+)\\]", "e^($1)");
-        expr = expr.replaceAll("Exp\\(([^\\)]+)\\)", "e^($1)");
-        return expr;
-    }
-    
-    /**
-     * Función auxiliar robusta que aísla y parsea el coeficiente numérico de un término funcional específico.
-     */
-    private double getRobustExtractedCoeff(String expression, String functionalTerm) {
-        
-        // Normalizar exponenciales PRIMERO
-        String normalizedExpr = normalizeExponentials(expression);
-        String normalizedTerm = normalizeExponentials(functionalTerm);
-        
-        // LUEGO simplificar
-        normalizedExpr = SymbolicDifferentiator.simplify(normalizedExpr); 
-        normalizedTerm = SymbolicDifferentiator.simplify(normalizedTerm);
-        
-        // Normalizar exponenciales de nuevo después de simplificar (Symja puede cambiar el formato)
-        normalizedExpr = normalizeExponentials(normalizedExpr);
-        normalizedTerm = normalizeExponentials(normalizedTerm);
-        
-        if (normalizedExpr.equals("0")) return 0.0;
-        
-        // 1. Dividir la expresión por sumas/restas
-        String[] terms = normalizedExpr.split("(?=[\\+\\-])");
-        double accumulatedCoeff = 0.0;
-
-        for (String term : terms) {
-            
-            String cleanTerm = term.replaceAll("^\\+", "").trim(); 
-            if (cleanTerm.isEmpty()) continue;
-            
-            // 2a. Coincidencia Exacta (para C = +/-1)
-            // (Ej: cleanTerm="cos(2x)" y normalizedTerm="cos(2x)")
-            if (cleanTerm.equals(normalizedTerm)) {
-                accumulatedCoeff += (term.startsWith("-") ? -1.0 : 1.0);
-                continue;
-            }
-
-            // 2b. Coincidencia con Coeficiente (C * T(x) o T(x) * C)
-            // Patrón para buscar: (* o ^) [normalizedTerm] (* o $)
-            // Usamos quote para escapar caracteres especiales en el término (como '^')
-            String patternString = "(^|\\*)" + Pattern.quote(normalizedTerm) + "(\\*|$)";
-            
-            Matcher m = Pattern.compile(patternString).matcher(cleanTerm);
-            
-            if (m.find()) {
-                // Reemplazar el término funcional encontrado por un marcador
-                String tempTerm = m.replaceAll(MARKER); 
-
-                // Extraer el coeficiente: Quitar el marcador y cualquier '*' que lo rodee
-                String coeffStr = tempTerm.replaceAll("\\*?(" + Pattern.quote(MARKER) + ")\\*?", "")
-                                          .replaceAll("^\\+|\\*$", "").trim();
-                
-                double currentCoeff = 0.0;
-
-                if (coeffStr.isEmpty()) {
-                    currentCoeff = 1.0;
-                } else if (coeffStr.equals("-")) {
-                    currentCoeff = -1.0;
-                } else if (coeffStr.equals("+")) {
-                    currentCoeff = 1.0;
-                } else {
-                    try {
-                        currentCoeff = Double.parseDouble(coeffStr);
-                    } catch (NumberFormatException e) {
-                        // ⚠️ MEJORA: Si el coeficiente contiene variables, intentar simplificar
-                        if (isSafeToSimplify(coeffStr)) {
-                            try {
-                                String simplified = SymbolicDifferentiator.simplify(coeffStr);
-                                if (!simplified.equals(coeffStr)) {
-                                    // Si la simplificación cambió algo, intentar parsear de nuevo
-                                    try {
-                                        currentCoeff = Double.parseDouble(simplified);
-                                    } catch (NumberFormatException e3) {
-                                        // Aún no es un número puro
-                                        currentCoeff = 0.0;
-                                    }
-                                } else {
-                                    // La simplificación no ayudó
-                                    currentCoeff = 0.0;
-                                }
-                            } catch (Exception e2) {
-                                // Si la simplificación falla, retornar 0
-                                currentCoeff = 0.0;
-                            }
-                        } else {
-                            // No es seguro simplificar: tratar como 0
-                            currentCoeff = 0.0;
-                        }
-                    }
-                }
-                
-                if (term.startsWith("-") && currentCoeff > 0) {
-                     currentCoeff *= -1;
-                }
-
-                accumulatedCoeff += currentCoeff;
-            }
-        }
-        
-        return accumulatedCoeff;
-    }
-
-    // ----------------------- MÉTODO DE VALIDACIÓN --------------------------
-    
-    /**
-     * Valida que la matriz A|b esté bien construida.
-     * Detecta problemas como filas/columnas de todos ceros que causarían singularidad.
-     */
     // ----------------------- MÉTODO PRINCIPAL DE RESOLUCIÓN --------------------------
 
     public Map<String, Double> resolveCoefficients() {
@@ -190,35 +67,57 @@ public class UndeterminedCoeffResolver {
             String baseTerm_i = baseUCTerms.get(i); // Ej: cos(2x)
             
             // j = Columna (Término Yp*)
-            for (int j = 0; j < numCols; j++) { 
-                
+            for (int j = 0; j < numCols; j++) {
                 String ypTerm_j = ypStarTerms.get(j); // Ej: x*cos(2x)
-                double totalCoefficientOfTerm_base = 0.0;
-                
-                
+
+                // Construir la suma simbólica Σ a_k * coeff_k(x) como expresión Symja
+                StringBuilder symbolicSum = new StringBuilder("0");
+
                 // Aplicar el operador L[ypTerm_j]
-                for (int k = 0; k <= order; k++) { 
-                    double a_k = coefficients[order - k]; 
-                    
+                for (int k = 0; k <= order; k++) {
+                    double a_k = coefficients[order - k];
+
                     String derived_tj = SymbolicDifferentiator.calculateDerivative(ypTerm_j, k);
-                    
-                    // NO simplificar la derivada - mantener el formato original
-                    // String expanded_tj = SymbolicDifferentiator.simplify(derived_tj);
-                    
-                    // Extraer el coeficiente del término base (FILA i) de la derivada (COLUMNA j)
-                    double functionalCoeff = getRobustExtractedCoeff(derived_tj, baseTerm_i);
-                    
-                    totalCoefficientOfTerm_base += a_k * functionalCoeff;
+                    // Expandir antes de extraer coeficiente
+                    String expanded_derived = SymbolicDifferentiator.expand(derived_tj);
+
+                    // Extraer el coeficiente SIMBÓLICO del término base (como expresión Symja)
+                    String coeffExpr = SymjaEngine.extractCoefficientExpr(expanded_derived, baseTerm_i);
+                    if (coeffExpr == null || coeffExpr.equals("0")) continue;
+
+                    // Añadir a la suma: a_k * (coeffExpr)
+                    symbolicSum.append(" + (").append(a_k).append(")*(").append(coeffExpr).append(")");
                 }
-                
-                matrixA[i][j] = totalCoefficientOfTerm_base;
+
+                // Simplificar la suma y tratar de evaluarla numéricamente
+                double totalVal = SymjaEngine.simplifyAndEvalDouble(symbolicSum.toString());
+                if (Double.isNaN(totalVal)) {
+                    // No se pudo reducir a constante; UC no es aplicable aquí
+                    throw new IllegalStateException("Coeficiente simbólico no numérico en UC; fallback a VP requerido");
+                }
+
+                matrixA[i][j] = totalVal;
             }
             
             // Llenar el Vector B
-            // Extraer el coeficiente del término base (FILA i) de g(x)
-            vectorB[i] = getRobustExtractedCoeff(gX, baseTerm_i);
+            // Extraer el coeficiente simbólico del término base (FILA i) de g(x) y evaluar
+            String bCoeffExpr = SymjaEngine.extractCoefficientExpr(gX, baseTerm_i);
+            double bVal = SymjaEngine.simplifyAndEvalDouble(bCoeffExpr);
+            if (Double.isNaN(bVal)) {
+                throw new IllegalStateException("Término independiente contiene simbolos respecto a base; fallback a VP requerido");
+            }
+            vectorB[i] = bVal;
         }
-
+        
+        // DEBUG: mostrar matriz antes de resolver
+        System.out.println("\n   [DEBUG RESOLVER] Matriz A (" + numRows + "x" + numCols + "):");
+        for (int row = 0; row < numRows; row++) {
+            System.out.print("      [");
+            for (int col = 0; col < numCols; col++) {
+                System.out.printf("%.3f ", matrixA[row][col]);
+            }
+            System.out.printf("| %.3f]\n", vectorB[row]);
+        }
         
         // 4. Resolver el sistema lineal
         List<List<Double>> listA = new ArrayList<>();
@@ -234,9 +133,9 @@ public class UndeterminedCoeffResolver {
 
         // 5. Mapear resultados
         Map<String, Double> solvedCoeffs = new HashMap<>();
-        for (int i = 0; i < solutions.length; i++) {
-            double solution = Math.abs(solutions[i]) < TOLERANCE ? 0.0 : solutions[i]; 
-            solvedCoeffs.put(coeffNames.get(i), solution);
+        for (int idx = 0; idx < solutions.length; idx++) {
+            double solution = Math.abs(solutions[idx]) < TOLERANCE ? 0.0 : solutions[idx]; 
+            solvedCoeffs.put(coeffNames.get(idx), solution);
         }
         
         return solvedCoeffs;
@@ -245,38 +144,5 @@ public class UndeterminedCoeffResolver {
     public List<String> getSolvedCoeffNames() {
         return coeffNames;
     }
-
-    /**
-     * Valida que una cadena sea segura para simplificación con Symja.
-     * Detecta patrones malformados como "(1", paréntesis desbalanceados, etc.
-     */
-    private boolean isSafeToSimplify(String s) {
-        if (s == null || s.isEmpty()) return false;
-        String trimmed = s.trim();
-        if (trimmed.isEmpty()) return false;
-        // Evitar casos que son solo un paréntesis abierto, p.ej. "(1" o "("
-        if (trimmed.matches("^\\(+\\s*\\d.*") || trimmed.matches(".*\\)\\s*$")) {
-            // permitimos si los paréntesis están balanceados
-            return isBalancedParentheses(trimmed);
-        }
-        // Comprobar balance de paréntesis en general
-        if (!isBalancedParentheses(trimmed)) return false;
-        // Evitar cadenas muy cortas o que solo contienen un signo
-        if (trimmed.equals("+") || trimmed.equals("-")) return false;
-        return true;
-    }
-
-    /**
-     * Valida que los paréntesis estén balanceados en una cadena.
-     */
-    private boolean isBalancedParentheses(String s) {
-        if (s == null) return false;
-        int balance = 0;
-        for (char c : s.toCharArray()) {
-            if (c == '(') balance++;
-            else if (c == ')') balance--;
-            if (balance < 0) return false;
-        }
-        return balance == 0;
-    }
 }
+

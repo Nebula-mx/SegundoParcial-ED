@@ -282,6 +282,11 @@ public class UndeterminedCoeff {
         this.ypStarTerms.clear();
         this.ypStarTerms.addAll(uniqueYpStarTerms);
         
+        // DEBUG: mostrar listas generadas
+        System.out.println("\n   [DEBUG UC] baseUCTerms (" + baseUCTerms.size() + "): " + baseUCTerms);
+        System.out.println("   [DEBUG UC] ypStarTerms (" + ypStarTerms.size() + "): " + ypStarTerms);
+        System.out.println("   [DEBUG UC] coeffNames (" + solvedCoeffNames.size() + "): " + solvedCoeffNames);
+        
         // Reemplaza * con " * " para una visualización limpia
         return result.toString().replaceAll("\\*", " * "); 
     }

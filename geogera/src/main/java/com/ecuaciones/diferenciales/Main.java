@@ -191,10 +191,11 @@ public class Main {
                         System.out.println("   ✅ UC fue exitoso");
                         
                     } catch (ArithmeticException e) {
-                        // UC maneja resonancia internamente - no cambiar de método
-                        System.out.println("   ⚠️ Sistema singular detectado (posible RESONANCIA)");
-                        System.out.println("   ℹ️ UC resuelve resonancia analíticamente...");
-                        metodoPrincipalFallo = false;  // No es un fallo, UC lo maneja
+                        // Sistema singular (matriz no inversible) → resonancia que UC no puede resolver
+                        // Hacer fallback a VP
+                        System.out.println("   ⚠️ Sistema singular detectado (RESONANCIA)");
+                        System.out.println("   ℹ️ Switcheando a Variación de Parámetros...");
+                        metodoPrincipalFallo = true;  // Sí es un fallo, hacer fallback a VP
                         
                     } catch (Exception e) {
                         metodoPrincipalFallo = true;
