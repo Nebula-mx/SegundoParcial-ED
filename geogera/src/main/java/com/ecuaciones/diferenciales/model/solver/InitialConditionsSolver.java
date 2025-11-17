@@ -56,6 +56,8 @@ public class InitialConditionsSolver {
 
     /**
      * Normaliza exponenciales para compatibilidad con Symja
+     * CORREGIDO: Se añadieron ')' faltantes en patrones 1 y 4
+     * AÑADIDO: (?i) para insensibilidad a mayúsculas (e ó E)
      * Convierte:
      * - e^(3x) → e^(3*x)
      * - e^(-x) → e^(-1*x)
@@ -63,22 +65,25 @@ public class InitialConditionsSolver {
      * - e^(x) → e^(1*x)
      * También maneja "* " con espacios
      */
+/**
+     * Normaliza exponenciales para compatibilidad con Symja
+     * CORREGIDO (¡DE VERDAD!): Se añadieron ')' faltantes en patrones 1 y 4
+     * AÑADIDO: (?i) para insensibilidad a mayúsculas (e ó E)
+     */
     private String normalizeExponentials(String expr) {
-        // Patrón 1: e^(número seguido de letra, sin *)
-        // e^(3x) → e^(3*x)
-        expr = expr.replaceAll("e\\^\\((\\d+)\\s*([a-zA-Z])", "e^($1*$2");
         
-        // Patrón 2: e^(letra sola, sin multiplicador)
-        // e^(x) → e^(1*x)
-        expr = expr.replaceAll("e\\^\\(([a-zA-Z])\\)(?!\\*)", "e^(1*$1)");
+        // Patrón 1: e^(3x) → e^(3*x) 
+        // (?i) ignora mayúsculas/minúsculas (e ó E)
+        expr = expr.replaceAll("(?i)e\\^\\((\\d+)\\s*([a-zA-Z])", "e^($1*$2)");
         
-        // Patrón 3: e^(-letra)
-        // e^(-x) → e^(-1*x)
-        expr = expr.replaceAll("e\\^\\(-\\s*([a-zA-Z])\\)", "e^(-1*$1");
+        // Patrón 2: e^(x) → e^(1*x)
+        expr = expr.replaceAll("(?i)e\\^\\(([a-zA-Z])\\)(?!\\*)", "e^(1*$1)");
         
-        // Patrón 4: e^(-número seguido de letra)
-        // e^(-2x) → e^(-2*x)
-        expr = expr.replaceAll("e\\^\\(-\\s*(\\d+)\\s*([a-zA-Z])", "e^(-$1*$2");
+        // Patrón 3: e^(-x) → e^(-1*x)
+        expr = expr.replaceAll("(?i)e\\^\\(-\\s*([a-zA-Z])\\)", "e^(-1*$1)");
+        
+        // Patrón 4: e^(-2x) → e^(-2*x)
+        expr = expr.replaceAll("(?i)e\\^\\(-\\s*(\\d+)\\s*([a-zA-Z])", "e^(-$1*$2)");
         
         // Patrón 5: Eliminar espacios alrededor de *
         expr = expr.replaceAll("\\s*\\*\\s*", "*");
@@ -182,14 +187,14 @@ public class InitialConditionsSolver {
             for (int j = 0; j < order; j++) {
                 String baseFunc = baseFunctions.get(j);
 
-                // Evaluar la derivada en x0 usando diferencias numéricas
+                // Evaluar la derivada en x0 usando derivación simbólica
                 double value;
                 if (ic.derivativeOrder == 0) {
                     // Función sin derivar
                     value = evaluateAt(baseFunc, ic.x0);
                 } else {
-                    // Usar derivada numérica
-                    value = evaluateDerivativeAtNumerical(baseFunc, ic.x0, ic.derivativeOrder);
+                    // Usar derivada simbólica
+                    value = evaluateDerivativeAtSymbolic(baseFunc, ic.x0, ic.derivativeOrder);
                 }
                 row.add(value);
             }
@@ -228,6 +233,7 @@ public class InitialConditionsSolver {
      * - "C1*cos(2x) + C2*sin(2x)"
      * - "C1 + C2*x + C3*e^x"
      * - "C1*e^x + C2*e^(2x)"
+     * - "(C1+C2*x)*e^x"  (raíz doble)
      */
     private List<String> extractBaseFunctions() {
         List<String> functions = new ArrayList<>();
@@ -272,10 +278,46 @@ public class InitialConditionsSolver {
         }
 
         for (String term : terms) {
-            if (term.isEmpty()) continue;
+            if (term.isEmpty() || term.equals("+") || term.equals("-")) continue;
 
-            // Cada término tiene formato: (+/-)C#*(función) o (+/-)C#
-            // Capturar signo, número, y lo que sigue
+            // Caso especial: (C1+C2*x)*e^x (raíz doble)
+            Pattern doubleRootPattern = Pattern.compile("^([+\\-])\\((.*?)\\)\\*(.*)$");
+            Matcher doubleRootMatcher = doubleRootPattern.matcher(term);
+            
+            if (doubleRootMatcher.matches()) {
+                // Raíz doble: extraer funciones de dentro del paréntesis
+                String sign = doubleRootMatcher.group(1);
+                String innerPart = doubleRootMatcher.group(2);  // "C1+C2*x" o similar
+                String outerPart = doubleRootMatcher.group(3);   // "e^x" o similar
+                
+                // Aplicar signo si es negativo
+                if ("-".equals(sign)) {
+                    outerPart = "-(" + outerPart + ")";
+                }
+                
+                // Dividir la parte interna por C1, C2, etc.
+                // Para (C1+C2*x)*e^x queremos: C1*e^x y C2*x*e^x
+                String[] parts = innerPart.split("(?=[+-]C\\d)");
+                for (String part : parts) {
+                    if (part.isEmpty() || part.matches("^[+-]$")) continue;
+                    part = part.replaceAll("^\\+", "");  // Remover + inicial
+                    
+                    // part es algo como "-C2*x" o "C1"
+                    // Extraer lo que viene después de C# (consumiendo el * opcional)
+                    Pattern cPattern = Pattern.compile("^[+-]?C\\d+(?:\\*)?(.*)$");
+                    Matcher cMatcher = cPattern.matcher(part);
+                    if (cMatcher.matches()) {
+                        String coeff = cMatcher.group(1);  // "x" o vacío
+                        if (coeff.isEmpty()) {
+                            coeff = "1";
+                        }
+                        functions.add(coeff + "*" + outerPart);
+                    }
+                }
+                continue;
+            }
+
+            // Caso normal: (+/-)C#*(función) o (+/-)C#
             Pattern pattern = Pattern.compile("^([+\\-])C(\\d+)(?:\\*)?(.*)$");
             Matcher matcher = pattern.matcher(term);
 
@@ -301,83 +343,45 @@ public class InitialConditionsSolver {
     }
 
     /**
-     * Calcula la derivada de una expresión respecto a x usando diferencias numéricas
-     * Esto evita problemas de parsing con Symja
-     */
-    private String calculateDerivative(String expr) {
-        // Como esto es comple jo y Symja tiene problemas, usamos APROXIMACIÓN NUMÉRICA
-        // en lugar de derivada simbólica para evaluar la derivada en los puntos
-        // El parámetro "expr" se usa luego en evaluateAtWithDerivative
-        return expr;
-    }
-
-    /**
-     * Evalúa una expresión en un punto específico usando diferencias numéricas
-     * Si necesitamos la derivada, usamos (f(x+h) - f(x-h))/(2h)
-     * 
+     * Evalúa una expresión en un punto específico
      * Ejemplo: evaluateAt("cos(2*x)", 0.0) → 1.0
+     * 
+     * NOTA: La expresión ya debe estar normalizada (normalizeExponentials se llama en el constructor)
      */
     private double evaluateAt(String expr, double x0) {
-        // Normalizar antes de evaluar
-        String normalized = normalizeExponentials(expr);
-        // Usa SymjaEngine.evaluateNumerical que maneja todo
-        return SymjaEngine.evaluateNumerical(normalized, x0);
+        // Usa SymjaEngine.evaluateNumerical que maneja la conversión a sintaxis Symja
+        return SymjaEngine.evaluateNumerical(expr, x0);
     }
     
     /**
-     * Evalúa la derivada de una expresión en un punto usando diferencias finitas
-     * @param order el orden de la derivada (1 para primera derivada, 2 para segunda, etc.)
+     * Calcula y evalúa la derivada de una expresión en un punto específico
+     * ¡USA CÁLCULO SIMBÓLICO REAL con Symja!
+     * 
+     * @param expr la expresión (ej: "e^(2*x)")
+     * @param x0 el punto de evaluación (ej: 0.0)
+     * @param order el orden de la derivada (1, 2, 3, etc.)
+     * @return el valor numérico de la derivada en x0
      */
-    private double evaluateDerivativeAtNumerical(String expr, double x0, int order) {
-        final double h = 1e-6;
-        
-        // Normalizar
-        String normalized = normalizeExponentials(expr);
-        
+    private double evaluateDerivativeAtSymbolic(String expr, double x0, int order) {
+        // Si el orden es 0, solo evaluamos la función original
+        if (order == 0) {
+            return evaluateAt(expr, x0);
+        }
+
+        // --- Derivación Simbólica ---
+        String derivativeExpression;
         try {
-            if (order == 0) {
-                return evaluateAt(normalized, x0);
-            } else if (order == 1) {
-                // Primera derivada: (f(x+h) - f(x-h))/(2h)
-                double f_plus = SymjaEngine.evaluateNumerical(normalized, x0 + h);
-                double f_minus = SymjaEngine.evaluateNumerical(normalized, x0 - h);
-                return (f_plus - f_minus) / (2 * h);
-            } else if (order == 2) {
-                // Segunda derivada: (f(x+h) - 2f(x) + f(x-h))/h²
-                double f_plus = SymjaEngine.evaluateNumerical(normalized, x0 + h);
-                double f_center = SymjaEngine.evaluateNumerical(normalized, x0);
-                double f_minus = SymjaEngine.evaluateNumerical(normalized, x0 - h);
-                return (f_plus - 2 * f_center + f_minus) / (h * h);
-            } else {
-                // Para órdenes mayores, aproximación recurrente (menos precisa pero funciona)
-                double[] values = new double[order + 1];
-                for (int i = 0; i <= order; i++) {
-                    double xi = x0 + (i - order/2.0) * h;
-                    values[i] = SymjaEngine.evaluateNumerical(normalized, xi);
-                }
-                // Coeficientes de diferencias finitas para orden alto
-                double result = 0;
-                for (int i = 0; i <= order; i++) {
-                    result += values[i] * binomialCoeff(order, i) * (i % 2 == order % 2 ? 1 : -1);
-                }
-                return result / Math.pow(h, order);
-            }
+            // Usar SymjaEngine para obtener la derivada simbólica
+            derivativeExpression = SymjaEngine.getSymbolicDerivative(expr, "x", order);
+
         } catch (Exception e) {
-            System.err.println("  [Error] No se pudo calcular derivada numérica de '" + expr + "'");
-            return 0.0;
+            System.err.println("[InitialConditionsSolver] Error al calcular derivada simbólica: " + e.getMessage());
+            return Double.NaN; // Retornar NaN en caso de fallo
         }
-    }
-    
-    /**
-     * Calcula el coeficiente binomial C(n, k)
-     */
-    private static double binomialCoeff(int n, int k) {
-        if (k > n - k) k = n - k;
-        double result = 1;
-        for (int i = 0; i < k; i++) {
-            result = result * (n - i) / (i + 1);
-        }
-        return result;
+        
+        // --- Evaluación Numérica ---
+        // Ahora, evaluamos la expresión de la derivada en el punto x0
+        return evaluateAt(derivativeExpression, x0);
     }
 
     /**
@@ -403,17 +407,6 @@ public class InitialConditionsSolver {
         solution = SymjaEngine.symbolicSimplify(solution);
 
         return solution;
-    }
-
-    /**
-     * Formatea un valor numérico para visualización
-     */
-    private String formatValue(double value) {
-        if (Math.abs(value) < TOLERANCE) return "0";
-        if (Math.abs(value - Math.round(value)) < TOLERANCE) {
-            return String.valueOf((long) Math.round(value));
-        }
-        return DF.format(value);
     }
 
     // --- GETTERS ---

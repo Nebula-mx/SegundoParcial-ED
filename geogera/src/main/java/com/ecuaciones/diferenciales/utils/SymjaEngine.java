@@ -19,32 +19,34 @@ public class SymjaEngine {
     // --- 1. Utilidad de Sintaxis (Conversión a Symja: sin(x) -> Sin[x]) ---
 
     public static String convertToSymjaSyntax(String mathString) {
-        // Estrategia: Primero reemplazar sin(...), cos(...), etc. con Sin[...], Cos[...], etc.
-        // LUEGO hacer otros reemplazos.
         String result = mathString;
         
-        // PASO 0: Normalizar E^x a e^(x) antes de cualquier conversión
-        // Esto maneja el caso donde Symja retorna E^x y lo reprocesamos
-        result = result.replaceAll("E\\^([^\\s\\+\\-\\*\\/\\)\\]]+)", "e^($1)");
+        // PASO 0: Normalizar E^x (salida de Symja) a e^x (entrada)
+        // E^(3*x) -> e^(3*x)
+        result = result.replaceAll("(?i)E\\^\\(([^\\)]+)\\)", "e^($1)");
+        // E^x -> e^(x)
+        result = result.replaceAll("(?i)E\\^([a-z])", "e^($1)");
         
-        // Paso 1: Reemplazar funciones trigonométricas e exponenciales (estos SÍ necesitan corchetes)
-        // Usar un approach que matchee los paréntesis correctamente
-        result = result.replaceAll("sin\\(", "Sin[");
-        result = result.replaceAll("cos\\(", "Cos[");
-        result = result.replaceAll("tan\\(", "Tan[");
-        result = result.replaceAll("exp\\(", "Exp[");
-        result = result.replaceAll("ln\\(", "Log[");
-        result = result.replaceAll("log\\(", "Log[");
+        // PASO 1: Reemplazar funciones trigonométricas (sin → Sin, cos → Cos, etc.)
+        result = result.replaceAll("(?i)sin\\(", "Sin[");
+        result = result.replaceAll("(?i)cos\\(", "Cos[");
+        result = result.replaceAll("(?i)tan\\(", "Tan[");
+        result = result.replaceAll("(?i)exp\\(", "Exp[");
+        result = result.replaceAll("(?i)ln\\(", "Log[");
+        result = result.replaceAll("(?i)log\\(", "Log[");
         
-        // Paso 2: Cerrar los corchetes que abrimos (reemplazar ) que cierra una función)
-        // Esto es más complejo, necesitamos contar paréntesis
+        // PASO 2: Cerrar brackets para funciones
         result = closeMatchingBrackets(result);
         
-        // Paso 3: Otros reemplazos
-        result = result.replaceAll("e\\^([a-z0-9\\+\\-])", "Exp[$1]");
-        result = result.replaceAll("e\\^\\(([^\\)]+)\\)", "Exp[$1]");
+        // PASO 3: Convertir e^(...) a Exp[...]
+        // Patrón: e^(algo) → Exp[algo]
+        result = result.replaceAll("(?i)e\\^\\(([^\\)]+)\\)", "Exp[$1]");
+        // Patrón: e^x → Exp[x]
+        result = result.replaceAll("(?i)e\\^([a-z])", "Exp[$1]");
+        
+        // PASO 4: Otros reemplazos menores
         result = result.replaceAll("([0-9])x", "$1*x");
-        result = result.replaceAll("([x\\])])(\\()", "$1*$2");
+        result = result.replaceAll("([x\\])])\\(", "$1*");
         
         return result;
     }
@@ -93,6 +95,33 @@ public class SymjaEngine {
     }
 
     // --- 2. Derivación y Simplificación (Usado en CI y VdP) ---
+
+    /**
+     * Calcula la derivada simbólica de orden n.
+     * Usa D[f, {x, n}] para derivadas de orden superior.
+     * 
+     * @param expression La expresión (ej: "x^2 + sin(x)")
+     * @param variable La variable respecto a la cual derivar (ej: "x")
+     * @param order El orden de la derivada (1, 2, 3...)
+     * @return La expresión de la derivada como String
+     */
+    public static String getSymbolicDerivative(String expression, String variable, int order) {
+        if (order == 0) return expression;
+        
+        String symjaSyntax = convertToSymjaSyntax(expression);
+        try {
+            // Construye el comando: D[expresión, {variable, orden}]
+            String derivativeCommand = "D[" + symjaSyntax + ", {" + variable + ", " + order + "}]";
+            IExpr result = EVALUATOR.eval(derivativeCommand);
+            
+            // Simplificar la derivada antes de devolverla
+            String simplified = symbolicSimplify(result.toString());
+            return simplified;
+        } catch (Exception e) {
+            System.err.println("Error Symja al calcular derivada de orden " + order + ": " + e.getMessage());
+            return "d^" + order + "/d" + variable + "^" + order + "(" + expression + ")";
+        }
+    }
 
     /**
      * Calcula la derivada de una función respecto a x.
