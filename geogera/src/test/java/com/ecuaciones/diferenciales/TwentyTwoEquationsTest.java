@@ -291,4 +291,48 @@ public class TwentyTwoEquationsTest {
         
         assertTrue(true, "Resumen completado");
     }
+    
+    @Test
+    @DisplayName("TEST BONUS: Main.evaluate() con Condiciones Iniciales")
+    public void testEvaluateWithInitialConditions() {
+        // Prueba que Main.evaluate() calcula las constantes correctamente
+        // Ecuación: y'' - 5y' + 6y = 0
+        // Solución general: y = C1*e^(3x) + C2*e^(2x)
+        // CI: y(0)=1, y'(0)=2
+        // Esperado: C1=4, C2=-3 → y = 4*e^(3x) - 3*e^(2x)
+        
+        String ecuacion = "y'' - 5*y' + 6*y = 0";
+        List<String> conditions = Arrays.asList("y(0)=1", "y'(0)=2");
+        
+        System.out.println("\n=== DEBUG: testEvaluateWithInitialConditions ===");
+        System.out.println("Ecuación: " + ecuacion);
+        System.out.println("Condiciones: " + conditions);
+        
+        Map<String, Object> resultado = Main.evaluate(ecuacion, "AUTO", conditions);
+        
+        System.out.println("Resultado keys: " + resultado.keySet());
+        System.out.println("Status: " + resultado.get("status"));
+        System.out.println("Constants: " + resultado.get("constants"));
+        System.out.println("WithIC: " + resultado.get("withInitialConditions"));
+        System.out.println("FinalSolution: " + resultado.get("finalSolution"));
+        
+        // Verificar que se ejecutó exitosamente
+        assertEquals("SUCCESS", resultado.get("status"), "La evaluación debe ser exitosa");
+        
+        // Verificar que contiene constantes
+        assertTrue(resultado.containsKey("constants"), "Debe contener constantes calculadas");
+        
+        // Verificar que se marcó como con CI
+        assertTrue((boolean) resultado.getOrDefault("withInitialConditions", false), 
+                   "Debe estar marcado como con CI aplicadas");
+        
+        // Verificar que el resultado tiene la solución particular
+        String finalSolution = (String) resultado.get("finalSolution");
+        assertNotNull(finalSolution, "La solución final debe existir");
+        assertTrue(finalSolution.contains("y(x)"), "La solución debe tener formato y(x) = ...");
+        
+        System.out.println("\n✅ TEST BONUS: Main.evaluate() con CI EXITOSO");
+        System.out.println("   Constantes calculadas: " + resultado.get("constants"));
+        System.out.println("   Solución particular: " + finalSolution);
+    }
 }

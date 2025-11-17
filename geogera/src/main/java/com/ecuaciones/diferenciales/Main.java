@@ -18,6 +18,7 @@ import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.UndeterminedCoef
 import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.VariationOfParametersSolverV2;
 import com.ecuaciones.diferenciales.model.templates.ExpressionData;
 import com.ecuaciones.diferenciales.model.variation.WronskianCalculator;
+import com.ecuaciones.diferenciales.model.solver.InitialConditionsSolver;
 import com.ecuaciones.diferenciales.dto.StepResponse;
 import com.ecuaciones.diferenciales.service.StepByStepSolver;
 
@@ -261,13 +262,47 @@ public class Main {
                 System.out.println("   y(x) = " + solution_h);
             }
             
-            // Mostrar CI ingresadas
+            // Aplicar condiciones iniciales
             if (!condicionesIniciales.isEmpty()) {
+                System.out.println("\n╔════════════════════════════════════════════════════════════╗");
+                System.out.println("║         PASO 3: APLICACIÓN DE CONDICIONES INICIALES        ║");
+                System.out.println("╚════════════════════════════════════════════════════════════╝");
+                
                 System.out.println("\n   📌 Condiciones Iniciales Ingresadas:");
                 for (String ci : condicionesIniciales) {
                     System.out.println("      • " + ci);
                 }
-                System.out.println("   ℹ️ Nota: Las CI se pueden usar en integración web.");
+                
+                try {
+                    // Crear solver de CI
+                    InitialConditionsSolver ciSolver = new InitialConditionsSolver(solution_h, order);
+                    
+                    // Parsear condiciones
+                    List<InitialConditionsSolver.InitialCondition> parsedConditions = 
+                        InitialConditionsSolver.parseConditions(condicionesIniciales);
+                    
+                    // Resolver sistema
+                    Map<String, Double> solvedConstants = ciSolver.solveInitialConditions(parsedConditions);
+                    
+                    System.out.println("\n   🔧 Sistema de Ecuaciones Resuelto:");
+                    System.out.println("      Constantes calculadas:");
+                    for (Map.Entry<String, Double> entry : solvedConstants.entrySet()) {
+                        String formatted = formatConstantValue(entry.getValue());
+                        System.out.println("         " + entry.getKey() + " = " + formatted);
+                    }
+                    
+                    // Aplicar constantes a la solución
+                    String particularSolution = ciSolver.applyConstants(solvedConstants);
+                    
+                    System.out.println("\n╔════════════════════════════════════════════════════════════╗");
+                    System.out.println("║              SOLUCIÓN PARTICULAR (CON CI)                  ║");
+                    System.out.println("╚════════════════════════════════════════════════════════════╝");
+                    System.out.println("   y(x) = " + particularSolution);
+                    
+                } catch (Exception e) {
+                    System.out.println("\n   ⚠️  No se pudieron aplicar las CI: " + e.getMessage());
+                    System.out.println("       La solución general sigue siendo válida.");
+                }
             }
             
             mostrarResumenExitoso();
@@ -616,6 +651,46 @@ public class Main {
             
             resultado.put("finalSolution", finalSolution);
             resultado.put("solutionLatex", toLatex(finalSolution));
+            
+            // APLICAR CONDICIONES INICIALES SI LAS HAY
+            if (!condicionesIniciales.isEmpty()) {
+                try {
+                    InitialConditionsSolver ciSolver = new InitialConditionsSolver(solution_h, order);
+                    List<InitialConditionsSolver.InitialCondition> parsedConditions = 
+                        InitialConditionsSolver.parseConditions(condicionesIniciales);
+                    
+                    if (!parsedConditions.isEmpty()) {
+                        Map<String, Double> solvedConstants = ciSolver.solveInitialConditions(parsedConditions);
+                        
+                        // Agregar constantes al resultado
+                        Map<String, Object> constantsMap = new HashMap<>();
+                        for (Map.Entry<String, Double> entry : solvedConstants.entrySet()) {
+                            constantsMap.put(entry.getKey(), entry.getValue());
+                        }
+                        resultado.put("constants", constantsMap);
+                        
+                        // Aplicar constantes a la solución homogénea
+                        String particularSolution = ciSolver.applyConstants(solvedConstants);
+                        
+                        // Actualizar solución final si es no-homogénea
+                        if (!data.getIsHomogeneous() && solution_p != null && !solution_p.startsWith("ERROR")) {
+                            String cleanedYp = solution_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
+                            finalSolution = "y(x) = (" + particularSolution + ") + (" + cleanedYp + ")";
+                        } else {
+                            finalSolution = "y(x) = " + particularSolution;
+                        }
+                        
+                        resultado.put("finalSolution", finalSolution);
+                        resultado.put("solutionLatex", toLatex(finalSolution));
+                        resultado.put("initialConditions", condicionesIniciales);
+                        resultado.put("withInitialConditions", true);
+                    }
+                } catch (Exception e) {
+                    // Si falla, mantener la solución general
+                    resultado.put("initialConditionsError", e.getMessage());
+                }
+            }
+            
             resultado.put("status", "SUCCESS");
             resultado.put("code", 200);
             resultado.put("executionTimeMs", System.currentTimeMillis() - startTime);
@@ -676,6 +751,28 @@ public class Main {
         latex = latex.replace("sin(", "\\sin(");
         latex = latex.replace("cos(", "\\cos(");
         return latex;
+    }
+    
+    /**
+     * Formatea un valor de constante para visualización
+     */
+    private static String formatConstantValue(double value) {
+        double tolerance = 1e-10;
+        
+        // Si es muy cercano a 0
+        if (Math.abs(value) < tolerance) {
+            return "0";
+        }
+        
+        // Si es un número entero
+        if (Math.abs(value - Math.round(value)) < tolerance) {
+            return String.valueOf((long) Math.round(value));
+        }
+        
+        // Sino, 4 decimales
+        java.text.DecimalFormat df = new java.text.DecimalFormat("#.####", 
+            new java.text.DecimalFormatSymbols(java.util.Locale.US));
+        return df.format(value);
     }
 }
 
