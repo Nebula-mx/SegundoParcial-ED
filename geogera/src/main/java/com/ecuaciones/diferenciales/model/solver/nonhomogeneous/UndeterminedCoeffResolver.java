@@ -70,27 +70,52 @@ public class UndeterminedCoeffResolver {
             for (int j = 0; j < numCols; j++) {
                 String ypTerm_j = ypStarTerms.get(j); // Ej: x*cos(2x)
 
-                // Construir la suma simbólica Σ a_k * coeff_k(x) como expresión Symja
-                StringBuilder symbolicSum = new StringBuilder("0");
-
-                // Aplicar el operador L[ypTerm_j]
+                // ESTRATEGIA MEJORADA: Construir L[ypTerm_j] COMPLETO primero, 
+                // LUEGO extraer el coeficiente del término base de la expresión SIMPLIFICADA.
+                
+                // Paso 1: Aplicar el operador L completo: Σ a_k * y_p^(k)
+                StringBuilder lCommandBuilder = new StringBuilder("(");
                 for (int k = 0; k <= order; k++) {
                     double a_k = coefficients[order - k];
-
                     String derived_tj = SymbolicDifferentiator.calculateDerivative(ypTerm_j, k);
-                    // Expandir antes de extraer coeficiente
                     String expanded_derived = SymbolicDifferentiator.expand(derived_tj);
+                    
+                    if (k > 0) lCommandBuilder.append(" + ");
+                    
+                    // Formatear el coeficiente como entero si es posible
+                    String coeffStr;
+                    if (Math.abs(a_k - Math.round(a_k)) < 1e-9) {
+                        coeffStr = String.valueOf((long) Math.round(a_k));
+                    } else {
+                        coeffStr = String.valueOf(a_k);
+                    }
+                    
+                    lCommandBuilder.append("(").append(coeffStr).append(")*(").append(expanded_derived).append(")");
+                }
+                lCommandBuilder.append(")");
+                
+                String lYp = lCommandBuilder.toString();
+                
+                // Paso 2: Simplificar L[yp] COMPLETAMENTE para que se cancelen términos
+                String simplifiedLYp = SymjaEngine.symbolicSimplify(lYp);
+                
+                // Paso 3: Extraer el coeficiente del término base en la expresión SIMPLIFICADA
+                String coeffExpr = SymjaEngine.extractCoefficientExpr(simplifiedLYp, baseTerm_i);
+                
+                // Paso 4: Evaluar el coeficiente numéricamente
+                double totalVal = SymjaEngine.simplifyAndEvalDouble(coeffExpr);
 
-                    // Extraer el coeficiente SIMBÓLICO del término base (como expresión Symja)
-                    String coeffExpr = SymjaEngine.extractCoefficientExpr(expanded_derived, baseTerm_i);
-                    if (coeffExpr == null || coeffExpr.equals("0")) continue;
+                // DEBUG: mostrar cálculo detallado
+                System.out.println("   [DEBUG A[" + i + "][" + j + "]] baseTerm=" + baseTerm_i + 
+                                 ", ypTerm=" + ypTerm_j + 
+                                 ", L[yp]=" + simplifiedLYp + 
+                                 ", coeff=" + coeffExpr + 
+                                 ", val=" + totalVal);
 
-                    // Añadir a la suma: a_k * (coeffExpr)
-                    symbolicSum.append(" + (").append(a_k).append(")*(").append(coeffExpr).append(")");
+                if (Double.isNaN(totalVal)) {
+                    System.out.println("   [WARN] → NaN detectado");
                 }
 
-                // Simplificar la suma y tratar de evaluarla numéricamente
-                double totalVal = SymjaEngine.simplifyAndEvalDouble(symbolicSum.toString());
                 if (Double.isNaN(totalVal)) {
                     // No se pudo reducir a constante; UC no es aplicable aquí
                     throw new IllegalStateException("Coeficiente simbólico no numérico en UC; fallback a VP requerido");
@@ -103,8 +128,13 @@ public class UndeterminedCoeffResolver {
             // Extraer el coeficiente simbólico del término base (FILA i) de g(x) y evaluar
             String bCoeffExpr = SymjaEngine.extractCoefficientExpr(gX, baseTerm_i);
             double bVal = SymjaEngine.simplifyAndEvalDouble(bCoeffExpr);
+            
+            // DEBUG
+            System.out.println("   [DEBUG VECTOR-B] baseTerm[" + i + "]=" + baseTerm_i + 
+                             ", gX=" + gX + ", bCoeffExpr=" + bCoeffExpr + ", bVal=" + bVal);
+            
             if (Double.isNaN(bVal)) {
-                throw new IllegalStateException("Término independiente contiene simbolos respecto a base; fallback a VP requerido");
+                throw new IllegalStateException("Término independiente contiene simbolos respecto a base; fallback a VP requerido: " + bCoeffExpr);
             }
             vectorB[i] = bVal;
         }

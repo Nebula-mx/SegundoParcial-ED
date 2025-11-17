@@ -306,48 +306,143 @@ public class UndeterminedCoeff {
     public String generateParticularSolution(String ypForm, Map<String, Double> solvedCoeffs) {
         String finalYp = ypForm;
         
-        // PASO 1: Reemplazar cada coeficiente por su valor
+        // ========== PASO 1: Reemplazar TODOS los coeficientes (incluso los cero) ==========
         for (Map.Entry<String, Double> entry : solvedCoeffs.entrySet()) {
             String coeffName = entry.getKey();
             double value = entry.getValue();
+            String valueStr = formatValue(value);  // Esto incluye "0" para ceros
+            String regex = "\\b" + Pattern.quote(coeffName) + "\\b";
+            finalYp = finalYp.replaceAll(regex, valueStr);
+        }
+        
+        // ========== PASO 2: Remover componentes residuales con variables sin resolver ==========
+        // Si hay variables de coeficiente no reemplazadas (como E, F), remover sus términos
+        // Buscar patrones como "+ (E + F * x)" o similares
+        finalYp = finalYp.replaceAll("\\+\\s*\\([A-Z].*?\\)", "");  // Remover "+ (...)"
+        finalYp = finalYp.replaceAll("\\s*\\+\\s*\\([A-Z].*?\\)", "");  // Remover " + (...)"
+        
+        // ========== PASO 3: Remover términos que contienen " ± 0 * expr" ==========
+        // Estrategia: buscar y remover completamente términos con "0 *"
+        // Remover "+ 0 * expr +", "+ 0 * expr )" o "+ 0 * expr" al final
+        finalYp = finalYp.replaceAll("\\s*\\+\\s*0\\s*\\*\\s*\\w+\\s*(?:\\([^)]*\\))?\\s*(?=\\+|\\)|$)", "");
+        // Remover "- 0 * expr +", "- 0 * expr )" o "- 0 * expr" al final  
+        finalYp = finalYp.replaceAll("\\s*-\\s*0\\s*\\*\\s*\\w+\\s*(?:\\([^)]*\\))?\\s*(?=\\+|\\)|$)", "");
+        // Remover "( 0 * expr +", "( 0 * expr )" al inicio de paréntesis
+        finalYp = finalYp.replaceAll("\\(\\s*0\\s*\\*\\s*\\w+\\s*(?:\\([^)]*\\))?\\s*(?=\\+|\\))", "(");
+        // Remover "0 * expr )" al final antes de )
+        finalYp = finalYp.replaceAll("\\s*0\\s*\\*\\s*\\w+\\s*(?:\\([^)]*\\))?\\s*\\)", ")");
+        
+        // ========== PASO 4: Limpiar operadores huérfanos ==========
+        finalYp = finalYp.replaceAll("\\(\\s*\\+\\s*", "(");
+        finalYp = finalYp.replaceAll("\\(\\s*\\-\\s*", "(-");
+        finalYp = finalYp.replaceAll("\\+\\s*\\)", ")");
+        finalYp = finalYp.replaceAll("\\-\\s*\\)", ")");
+        finalYp = finalYp.replaceAll("\\*\\s*\\)", ")");
+        
+        // Remover paréntesis vacíos
+        finalYp = finalYp.replaceAll("\\(\\s*\\)", "");
+        
+        // Limpiar solo casos donde * está seguido de operador con +/- (residuo de remoción)
+        // NO limpiar * - cuando - es negación (después de operador)
+        finalYp = finalYp.replaceAll("\\)\\s*\\*\\s*\\+", ") + ");  // ") * +" → ") + "
+        
+        finalYp = finalYp.replaceAll("\\s+", " ").trim();
+        
+        // Remover múltiples paréntesis
+        while (finalYp.contains("))")) {
+            finalYp = finalYp.replaceAll("\\)\\)\\s*", ") ");
+        }
+        
+        finalYp = finalYp.replaceAll("\\(\\s*\\)", "");  // () → vacío
+        
+        // Operadores dobles
+        finalYp = finalYp.replaceAll("\\s*\\+\\s*\\+\\s*", " + ");
+        finalYp = finalYp.replaceAll("\\s*\\+\\s*-\\s*", " - ");
+        finalYp = finalYp.replaceAll("\\s*-\\s*\\+\\s*", " - ");
+        finalYp = finalYp.replaceAll("\\s*-\\s*-\\s*", " + ");
+        
+        // ========== PASO 5: Normalizar espacios ==========
+        finalYp = finalYp.replaceAll("^\\s*[\\+\\s]*", "");
+        finalYp = finalYp.replaceAll("\\s*[\\+\\*\\s]*$", "");
+        
+        // Normalizar espacios alrededor de operadores
+        finalYp = finalYp.replaceAll("([a-zA-Z0-9\\)\\]x])\\s*([\\+\\-])\\s*", "$1 $2 ");
+        finalYp = finalYp.replaceAll("\\)\\s*\\+\\s*\\(", ") + (");
+        
+        finalYp = finalYp.replaceAll("\\s+", " ").trim();
+        
+        // ========== PASO 6: Simplificar "1 * expr" a "expr" ==========
+        finalYp = finalYp.replaceAll("\\b1\\s*\\*\\s*", "");
+        
+        // ========== PASO 7: Remover paréntesis externos (múltiples pasadas) ==========
+        for (int iter = 0; iter < 5; iter++) {
+            // Limpiar primero operadores +/- huérfanos
+            finalYp = finalYp.replaceAll("\\(\\s*\\+\\s*", "(");
+            finalYp = finalYp.replaceAll("\\(\\s*\\-\\s*", "(-");
+            finalYp = finalYp.replaceAll("\\+\\s*\\)", ")");
+            finalYp = finalYp.replaceAll("\\-\\s*\\)", ")");
+            finalYp = finalYp.replaceAll("\\*\\s*\\)", ")");
+            finalYp = finalYp.replaceAll("\\(\\s*\\)", "");  // () vacío
             
-            // Reemplazar A, B, C... como palabras completas
-            String patternToReplace = "\\b" + Pattern.quote(coeffName) + "\\b"; 
-            String valueStr = formatValue(value); 
-            finalYp = finalYp.replaceAll(patternToReplace, valueStr);
+            // Ahora intentar remover paréntesis externos equilibrados
+            if (finalYp.startsWith("(") && finalYp.endsWith(")")) {
+                int balance = 0;
+                boolean canRemove = true;
+                for (int i = 0; i < finalYp.length(); i++) {
+                    if (finalYp.charAt(i) == '(') balance++;
+                    if (finalYp.charAt(i) == ')') balance--;
+                    if (balance == 0 && i < finalYp.length() - 1) {
+                        canRemove = false;
+                        break;
+                    }
+                }
+                if (canRemove && balance == 0) {
+                    finalYp = finalYp.substring(1, finalYp.length() - 1).trim();
+                }
+            }
+            finalYp = finalYp.replaceAll("\\s+", " ").trim();
         }
         
-        // PASO 2: Remover paréntesis más externos (si existen)
-        if (finalYp.startsWith("(") && finalYp.endsWith(")")) {
-            finalYp = finalYp.substring(1, finalYp.length() - 1).trim();
+        // ========== PASO 7B: Corregir paréntesis desbalanceados ==========
+        int open = 0, close = 0;
+        for (char c : finalYp.toCharArray()) {
+            if (c == '(') open++;
+            if (c == ')') close++;
         }
         
-        // PASO 3: Eliminar términos multiplicados por 0
-        // Patrón: "0 * expr" o "0.0 * expr" → eliminar
-        finalYp = finalYp.replaceAll("\\+\\s*0(?:\\.0+)?\\s*\\*\\s*[^\\+\\-]+", "");     // + 0*expr
-        finalYp = finalYp.replaceAll("\\-\\s*0(?:\\.0+)?\\s*\\*\\s*[^\\+\\-]+", "");     // - 0*expr
-        finalYp = finalYp.replaceAll("^0(?:\\.0+)?\\s*\\*\\s*[^\\+\\-]+", "");           // 0*expr (al inicio)
+        // Agregar paréntesis de cierre si faltan
+        if (open > close) {
+            finalYp = finalYp + ")".repeat(open - close);
+        }
+        // Remover paréntesis de apertura al inicio que sobraron
+        if (close > open) {
+            for (int i = 0; i < close - open; i++) {
+                finalYp = finalYp.replaceFirst("^\\s*\\(\\s*", "");
+            }
+        }
         
-        // PASO 4: Normalizar coeficiente 1
-        finalYp = finalYp.replaceAll("\\+\\s*1(?:\\.0+)?\\s*\\*\\s*", " + ");            // + 1*expr → + expr
-        finalYp = finalYp.replaceAll("\\-\\s*1(?:\\.0+)?\\s*\\*\\s*", " - ");            // - 1*expr → - expr
-        finalYp = finalYp.replaceAll("^1(?:\\.0+)?\\s*\\*\\s*", "");                     // 1*expr (inicio) → expr
+        // Pasar final para remover paréntesis externos sobrantes
+        while (finalYp.startsWith("(") && finalYp.endsWith(")")) {
+            int bal = 0;
+            boolean canRemoveOuter = true;
+            for (int i = 0; i < finalYp.length(); i++) {
+                if (finalYp.charAt(i) == '(') bal++;
+                if (finalYp.charAt(i) == ')') bal--;
+                if (bal == 0 && i < finalYp.length() - 1) {
+                    canRemoveOuter = false;
+                    break;
+                }
+            }
+            if (canRemoveOuter && bal == 0) {
+                finalYp = finalYp.substring(1, finalYp.length() - 1).trim();
+            } else {
+                break;
+            }
+        }
         
-        // Normalizar -1
-        finalYp = finalYp.replaceAll("\\+\\s*-1(?:\\.0+)?\\s*\\*\\s*", " - ");           // + -1*expr → - expr
-        finalYp = finalYp.replaceAll("^-1(?:\\.0+)?\\s*\\*\\s*", "-");                   // -1*expr (inicio) → -expr
+        finalYp = finalYp.trim();
         
-        // PASO 5: Limpiar operadores múltiples y espacios innecesarios
-        finalYp = finalYp.replaceAll("\\+\\s*-", " - ");                                 // +- → -
-        finalYp = finalYp.replaceAll("\\s*\\+\\s*", " + ").replaceAll("\\s*-\\s*", " - ");
-        finalYp = finalYp.replaceAll("^\\s*\\+\\s*", "");                                // Remover + al inicio
-        finalYp = finalYp.replaceAll("\\s+", " ").trim();                                // Normalizar espacios
-        
-        // PASO 6: Remover paréntesis internos que no sean necesarios
-        finalYp = finalYp.replaceAll("\\(\\s*([^\\(\\)]+)\\s*\\)", "$1");
-        
-        // PASO 7: Validar resultado final
-        if (finalYp.isEmpty() || finalYp.matches("^[\\+\\-]?\\s*0(?:\\.0+)?\\s*$")) {
+        if (finalYp.isEmpty()) {
             return "0";
         }
         

@@ -30,16 +30,26 @@ public class SymjaEngine {
         result = result.replaceAll("Sin\\[([^\\]]+)\\]", "sin($1)");
         result = result.replaceAll("Cos\\[([^\\]]+)\\]", "cos($1)");
         result = result.replaceAll("Tan\\[([^\\]]+)\\]", "tan($1)");
+        
+        // Paso 1b: Convertir funciones hiperbólicas Symja a nuestro formato
+        result = result.replaceAll("Sinh\\[([^\\]]+)\\]", "sinh($1)");
+        result = result.replaceAll("Cosh\\[([^\\]]+)\\]", "cosh($1)");
+        result = result.replaceAll("Tanh\\[([^\\]]+)\\]", "tanh($1)");
+        
+        // Paso 2: Convertir exponenciales
         result = result.replaceAll("Exp\\[([^\\]]+)\\]", "e^($1)");
         result = result.replaceAll("Log\\[([^\\]]+)\\]", "ln($1)");
         result = result.replaceAll("Sqrt\\[([^\\]]+)\\]", "sqrt($1)");
         
-        // Paso 2: Convertir E^x (salida Symja) a e^(x)
+        // Paso 3: Convertir E^(...) (salida Symja) a e^(...)
         result = result.replaceAll("E\\^\\(([^\\)]+)\\)", "e^($1)");
-        result = result.replaceAll("E\\^([a-z])", "e^($1)");
         
-        // Paso 3: Convertir E (número de Euler) a e si aparece aislado
-        // Pero evitar reemplazar E dentro de "Exp" o "E^"
+        // Paso 4: Convertir E^variable (como E^x, E^y) a e^(variable)
+        // Usa word boundary para evitar capturar "Exp" o "Sinh", etc.
+        result = result.replaceAll("E\\^([a-zA-Z](?:\\^[0-9]+)?)", "e^($1)");
+        
+        // Paso 5: Convertir E (número de Euler standalone) a e
+        // Pero preservar E dentro de funciones ya convertidas
         result = result.replaceAll("\\bE\\b", "e");
         
         return result;
@@ -276,18 +286,89 @@ public class SymjaEngine {
     // --- 4. Extracción de Coeficientes (Usado en CI) ---
 
     /**
-     * Extrae el coeficiente simbólico de `functionalTerm` en `expression` usando división rápida.
-     * Ej: expression="E^x*(1+x)" functionalTerm="E^x" -> returns "1+x"
-     * RÁPIDO: sin Collect (que es lento), solo división directa.
+     * Extrae el coeficiente simbólico de `functionalTerm` en `expression` de forma INTELIGENTE.
+     * 
+     * Estrategia:
+     * 1. SIEMPRE intentar Coefficient[] primero (funciona para polinomios y términos simples)
+     * 2. Si falla, usar división + TrigExpand + Simplify (para términos complejos)
+     * 3. Validar que el resultado sea válido (no fracción "numero/x")
      */
     public static String extractCoefficientExpr(String expression, String functionalTerm) {
         String symjaExpr = convertToSymjaSyntax(expression);
         String symjaTerm = convertToSymjaSyntax(functionalTerm);
         try {
-            // División rápida: (expr) / (term) = coeff
-            String divisionCommand = "(" + symjaExpr + ") / (" + symjaTerm + ")";
+            // PASO 0: Simplificar la expresión primero para normalizar
+            String simplifyCmd = "Simplify[" + symjaExpr + "]";
+            IExpr simplifiedExpr = EVALUATOR.eval(simplifyCmd);
+            String simplifiedStr = simplifiedExpr.toString();
+            
+            // CASO ESPECIAL: Si estamos buscando el coeficiente de "1" (término constante)
+            // significa que queremos saber si la expresión es constante (sin x).
+            // Si functionalTerm = "1", extraer la parte constante de la expresión.
+            if (functionalTerm.equals("1") || functionalTerm.equals("1.0")) {
+                // Usar Coefficient[] para extraer términos de grado 0 (constantes)
+                String coeffCmd = "Coefficient[" + simplifiedStr + ", x, 0]";
+                try {
+                    IExpr coeff = EVALUATOR.eval(coeffCmd);
+                    String result = coeff.toString();
+                    if (!result.startsWith("Coefficient[")) {
+                        // Funcionó
+                        if (result.equals("0")) return "0";
+                        return result;
+                    }
+                } catch (Exception e) {
+                    // Si eso no funciona, intentar como constante pure
+                    // Si NO contiene 'x', es puramente constante
+                    if (!simplifiedStr.matches("(?s).*(?<![A-Za-z0-9_])x(?![A-Za-z0-9_]).*")) {
+                        return simplifiedStr;
+                    }
+                    return "0";
+                }
+            }
+            
+            // Estrategia 1: INTENTAR Coefficient[] primero (funciona para polinomios, exponenciales, etc)
+            // Usar la expresión ya simplificada
+            String coeffCmd = "Coefficient[" + simplifiedStr + ", " + symjaTerm + "]";
+            IExpr coeff = EVALUATOR.eval(coeffCmd);
+            String result = coeff.toString();
+            
+            // Si Coefficient funcionó (retorna algo que no es "Coefficient[...")
+            if (!result.startsWith("Coefficient[")) {
+                if (result.equals("0")) return "0";
+                return result;
+            }
+            
+            // Estrategia 2: Si Coefficient[] no funcionó, usar división + simplificación
+            String divisionCommand = "(" + simplifiedStr + ") / (" + symjaTerm + ")";
             IExpr quotient = EVALUATOR.eval(divisionCommand);
-            return quotient.toString();
+            
+            String quotientStr = quotient.toString();
+            
+            // Expand para distribuir
+            String expandCmd = "Expand[" + quotientStr + "]";
+            IExpr expanded = EVALUATOR.eval(expandCmd);
+            
+            // TrigExpand para expandir trig
+            String trigCmd = "TrigExpand[" + expanded.toString() + "]";
+            IExpr trigExpanded = EVALUATOR.eval(trigCmd);
+            
+            // Simplify para colapsar
+            String simplifyCmd2 = "Simplify[" + trigExpanded.toString() + "]";
+            IExpr simplified = EVALUATOR.eval(simplifyCmd2);
+            
+            String result2 = simplified.toString();
+            
+            if (result2.equals("0")) return "0";
+            
+            // VALIDACIÓN: Si es fracción pura "numero/x", retornar "0"
+            if (result2.contains("/") && !result2.matches(".*[a-zA-Z]+\\(.*\\).*")) {
+                String[] parts = result2.split("/");
+                if (parts.length == 2 && !parts[0].contains("x") && parts[1].contains("x")) {
+                    return "0";
+                }
+            }
+
+            return result2;
         } catch (Exception e) {
             return "0";
         }
@@ -297,17 +378,39 @@ public class SymjaEngine {
      * Simplifica una expresión Symja y trata de evaluarla numéricamente. Si la
      * expresión resulta en una constante devuelve su valor double; si contiene
      * símbolos (por ejemplo 'x') devuelve Double.NaN SIN CUELGUES.
+     * 
+     * FIX: Primero SIMPLIFICA la expresión (Expand, Simplify, etc.) para colapsar sumas
+     * y luego verifica si contiene SOLO la variable 'x' (no otras variables/símbolos).
+     * También usa TrigReduce para cancelar términos trig que se simplifican.
      */
     public static double simplifyAndEvalDouble(String symjaExpression) {
         try {
-            // Primero: chequear si contiene variables (x, y, etc.) sin esperar
-            if (symjaExpression.matches(".*[a-zA-Z]+.*")) {
-                // Contiene letras: probablemente variable
+            // Convertir la expresión a sintaxis Symja (por ejemplo sin() -> Sin[])
+            String symjaSyntax = convertToSymjaSyntax(symjaExpression);
+
+            // PASO 1: Simplificar agresivamente la expresión
+            // Primero Expand para distribuir, luego TrigReduce para cancelar trig, luego Simplify
+            String expandCmd = "Expand[" + symjaSyntax + "]";
+            IExpr expanded = EVALUATOR.eval(expandCmd);
+            
+            String trigCmd = "TrigReduce[" + expanded.toString() + "]";
+            IExpr trigReduced = EVALUATOR.eval(trigCmd);
+            
+            String simplifyCommand = "Simplify[" + trigReduced.toString() + "]";
+            IExpr simplified = EVALUATOR.eval(simplifyCommand);
+            String simplifiedStr = simplified.toString();
+
+            // PASO 2: Detectar únicamente la variable independiente 'x' (no rechazar nombres de
+            // funciones como "Sin"/"Cos"/"Sec"). Si la expresión contiene la variable
+            // 'x' en forma de identificador, no es una constante y devolvemos NaN.
+            if (simplifiedStr.matches("(?s).*(?<![A-Za-z0-9_])x(?![A-Za-z0-9_]).*")) {
                 return Double.NaN;
             }
-            
-            // Solo si parece numérica, evaluar
-            String numericCommand = "N[" + symjaExpression + "]";
+
+            // PASO 3: Intentar evaluar numéricamente usando Symja. Esto permite que expresiones
+            // como Sin[2] o Sec[Pi/4] sean evaluadas correctamente aunque contengan
+            // letras en los nombres de funciones.
+            String numericCommand = "N[" + simplifiedStr + "]";
             IExpr numeric = EVALUATOR.eval(numericCommand);
             try {
                 return numeric.evalDouble();

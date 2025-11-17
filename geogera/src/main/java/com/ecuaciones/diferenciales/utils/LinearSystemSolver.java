@@ -38,10 +38,38 @@ public class LinearSystemSolver {
         // Aplicar Gauss-Jordan con pivoteo parcial
         gaussJordanPivoting(augmented);
 
-        // Extraer soluciones
+        // Extraer soluciones usando sustitución hacia atrás
+        // Después de Gauss-Jordan, la matriz está en forma escalonada
+        // Para cada variable, buscamos el renglón donde aparece como pivote (1 en diagonal)
         double[] solutions = new double[m];
+        
         for (int j = 0; j < m; j++) {
-            solutions[j] = augmented[Math.min(j, n - 1)][m];
+            // Encontrar la fila donde la columna j es el pivote (valor 1)
+            int pivotRow = -1;
+            for (int i = 0; i < n; i++) {
+                if (Math.abs(augmented[i][j] - 1.0) < TOLERANCE) {
+                    // Verificar que es la única columna no-cero en esta fila (hasta j)
+                    boolean isPivot = true;
+                    for (int k = 0; k < j; k++) {
+                        if (Math.abs(augmented[i][k]) > TOLERANCE) {
+                            isPivot = false;
+                            break;
+                        }
+                    }
+                    if (isPivot) {
+                        pivotRow = i;
+                        break;
+                    }
+                }
+            }
+            
+            if (pivotRow != -1) {
+                // La solución es el término independiente de la fila del pivote
+                solutions[j] = augmented[pivotRow][m];
+            } else {
+                // Variable libre (o no aparece como pivote)
+                solutions[j] = 0.0;
+            }
         }
 
         return solutions;

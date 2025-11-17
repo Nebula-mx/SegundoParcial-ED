@@ -39,11 +39,14 @@ public class WronskianCalculator {
             double beta = root.getImaginary();
             int m = root.getMultiplicity();
             
-            // 1. Componente exponencial e^(alpha*x)
+            // 1. Componente exponencial e^(alpha*x) - CON PARÉNTESIS PARA EVITAR AMBIGÜEDAD
             String expTerm = "";
             if (Math.abs(alpha) > TOLERANCE) {
-                 String alphaStr = (Math.abs(alpha - 1.0) < TOLERANCE) ? "x" : formatCoeff(alpha) + "x";
-                 expTerm = "e^" + alphaStr;
+                 // Generar notación limpia: e^(-x), e^(2*x), etc.
+                 String absAlphaStr = formatCoeff(Math.abs(alpha));
+                 String sign = alpha < 0 ? "-" : "";
+                 String expArg = absAlphaStr.equals("1") ? sign + "x" : sign + absAlphaStr + "*x";
+                 expTerm = "e^(" + expArg + ")";  // e^(-x), e^(2*x), etc.
             }
             
             // 2. Generar m términos para la multiplicidad
