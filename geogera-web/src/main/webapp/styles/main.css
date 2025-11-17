@@ -4,9 +4,35 @@
   --legendColor: #717182;
   --containerBgColor: #FFFFFF;
   --boxesBgColor: #F3F3F5;
+  --altBoxesBgColor: #0f0f0f;
   --tipBoxesBgColor: #F8FAFC;
   --borderColor: #E5E5E5;
   --globalBorderRadius: clamp(8px, 2vw, 12px);
+}
+
+/* Tema oscuro: detecta preferencia del sistema y permite forzar con [data-theme="dark"] en <html> */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mainBgColor: #0b1220;
+    --fontColor: #ECEFF1;
+    --legendColor: #9AA0A6;
+    --containerBgColor: #0f1724;
+    --boxesBgColor: #1f2937;
+    --altBoxesBgColor: #0b0b0b;
+    --tipBoxesBgColor: #071223;
+    --borderColor: #2b2b2b;
+  }
+}
+
+:root[data-theme="dark"] {
+  --mainBgColor: #0b1220;
+  --fontColor: #ECEFF1;
+  --legendColor: #9AA0A6;
+  --containerBgColor: #0f1724;
+  --boxesBgColor: #1f2937;
+  --altBoxesBgColor: #0b0b0b;
+  --tipBoxesBgColor: #071223;
+  --borderColor: #2b2b2b;
 }
 
 * {
@@ -16,32 +42,39 @@
   font-family: "Montserrat", sans-serif;
   font-style: normal;
 }
+button {
+  cursor: pointer;
+}
 
 #root {
   background-color: var(--mainBgColor);
   color: var(--fontColor);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 
   header {
-    width: 100vw;
-    padding: clamp(0px, 3vw, 46px);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    width: 90%;
+    padding: clamp(0px, 3vw, 46px) 0;
+    text-align: center;
+    margin: 0 auto;
     h2 {
-      font-size: clamp(16px, 30vw, 36px);
+      font-size: clamp(0.5rem, 3.5vw, 1.5rem);
       margin-bottom: clamp(8px, 1.5vw, 18px);
       font-weight: 600;
     }
     legend {
-      font-size: clamp(12px, 20vw, 24px);
+      font-size: clamp(0.5rem, 3.5vw, 1.2rem);
       color: var(--legendColor);
     }
   }
   #contentContainer {
     display: grid;
     grid-template-rows: repeat(3, auto);
+    width: 90%;
+    height: 100%;
+    margin: 0 auto;
     gap: clamp(8px, 2vw, 18px);
     padding: clamp(8px, 2vw, 18px);
     #contentAside {
@@ -50,22 +83,21 @@
       gap: clamp(12px, 2.5vw, 24px);
       #CA-equationForm, #CA-initialConditionsForm {
         background-color: var(--containerBgColor);
-        padding: clamp(12px, 2.5vw, 24px);
+        padding: clamp(0.5rem, 4vw, 2.5rem);
         border: 1px solid var(--borderColor);
         border-radius: var(--globalBorderRadius);
-        box-shadow: 2px 2px 12px rgba(0, 0, 0, .1);
         h3 {
-          font-size: clamp(14px, 25vw, 28px);
+          font-size: clamp(0.5rem, 3.5vw, 1.5rem);
           margin-bottom: clamp(1px, 1.5vw, 8px);
           font-weight: 600;
         }
         legend {
-          font-size: clamp(10px, 20vw, 20px);
+          font-size: clamp(0.5rem, 3.5vw, 1.2rem);
           color: var(--legendColor);
           margin-bottom: clamp(12px, 2.5vw, 24px);
         }
         label {
-          font-size: clamp(12px, 20vw, 20px);
+          font-size: clamp(0.5rem, 3.5vw, 1.2rem);
           font-weight: 500;
         }
         input[type="text"] {
@@ -76,17 +108,27 @@
           margin-bottom: clamp(8px, 2vw, 16px);
           border: 1px solid var(--borderColor);
           border-radius: var(--globalBorderRadius);
-          font-size: clamp(0px, 20vw, 16px);
+          font-size: clamp(0.25rem, 3.5vw, 1rem);
           font-family: Consolas, Monaco, "Lucida Console", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
+          color: var(--fontColor);
+        }
+        .formDoubleInputsContainer {
+          width: 100%;
+          display: flex;
+          justify-content: space-between;
+          > input[type="text"] {
+            width: 49%;
+          }
         }
         button {
-          padding: clamp(8px, 2vw, 16px) clamp(12px, 2.5vw, 24px);
-          font-size: clamp(12px, 20vw, 20px);
-          color: #FFFFFF;
-          background-color: #007BFF;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
+          width: 100%;
+          padding: clamp(0px, 2vw, 12px);
+          background-color: var(--boxesBgColor);
+          border: 1px solid var(--borderColor);
+          border-radius: var(--globalBorderRadius);
+          font-size: clamp(0.25rem, 3.5vw, 1rem);
+          font-weight: 500;
+          color: var(--fontColor);
         }
         .CA-notationEx {
           background-color: var(--tipBoxesBgColor);
@@ -107,6 +149,91 @@
             }
           }
         }
+      }
+      #resolveEquation {
+        width: 100%;
+        padding: clamp(0px, 2vw, 12px);
+        background-color: var(--altBoxesBgColor);
+        border: 1px solid var(--borderColor);
+        border-radius: var(--globalBorderRadius);
+        font-size: clamp(0.25rem, 3.5vw, 1rem);
+        font-weight: 500;
+  color: var(--fontColor);
+      }
+    }
+    #EQ-resolutionMain {
+      display: flex;
+      flex-direction: column;
+      background-color: var(--containerBgColor);
+      padding: clamp(0.5rem, 4vw, 2.5rem);
+      border: 1px solid var(--borderColor);
+      border-radius: var(--globalBorderRadius);
+      height: 100%;
+      #EQ-resMethod {
+        h3 {
+          font-size: clamp(0.5rem, 3.5vw, 1.5rem);
+          margin-bottom: clamp(1px, 1.5vw, 8px);
+          font-weight: 600;
+        }
+        legend {
+          font-size: clamp(0.5rem, 3.5vw, 1.2rem);
+          color: var(--legendColor);
+          margin-bottom: clamp(12px, 2.5vw, 24px);
+        }
+        #resMethod-select {
+          display: flex;
+          width: 100%;
+          justify-content: space-around;
+          appearance: none;
+          padding: clamp(0px, 2vw, 12px);
+          background-color: var(--boxesBgColor);
+          border-radius: var(--globalBorderRadius);
+          input[type="radio"] {
+            cursor: pointer;
+            appearance: none;
+          }
+          label {
+            flex: 1;
+            text-align: center;
+            padding: clamp(0px, 2vw, 12px);
+            border-radius: var(--globalBorderRadius);
+            background-color: var(--boxesBgColor);
+            transition: background-color 0.3s, color 0.3s;
+            cursor: pointer;
+            font-size: clamp(0.25rem, 3.5vw, 1rem);
+          }
+          input[type="radio"]:checked + * {
+            background-color: var(--altBoxesBgColor);
+            color: var(--fontColor);
+            font-weight: 500;
+          }
+        }
+      }
+    }
+  }
+}
+
+@media screen and (width >= 1088px) {
+  #root #contentContainer {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: auto 1fr;
+    align-items: start;
+
+    #contentAside {
+      grid-column: 1;
+      grid-row: 1 / span 2;
+      height: fit-content;
+    }
+
+    #EQ-resolutionMain {
+      grid-column: 2 / span 2;
+      grid-row: 1 / span 2;
+      display: flex;
+      flex-direction: column;
+
+      #EQ-finalRes {
+        flex: 1;
+        overflow-y: auto;
       }
     }
   }

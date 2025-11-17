@@ -16,8 +16,10 @@ public class EcuationParser extends ODEParser {
     // Patrón simple: Captura el término del coeficiente seguido de la función y su derivada.
     // Grupo 1: Coeficiente con signo (ej: +1, -4.5, -1)
     // Grupo 2: Función (y''', y'', y', y^(n), y)
+    // El \*? permite un asterisco opcional entre el coeficiente y la derivada (ej: -3*y' o -3y')
     private static final Pattern TERM_PATTERN = Pattern.compile(
         "([+-]\\s*\\d*\\.?\\d+\\s*)" + 
+        "\\*?\\s*" +
         "(y'''|y''|y'|y\\^\\(\\d+\\)|y)"
     );
     
@@ -35,7 +37,7 @@ public class EcuationParser extends ODEParser {
         // Captura: Signo (+ o -) seguido de una derivada o 'y' que NO tiene un número delante.
         // Normalizar: [+-]y... -> [+-]1y...
         String derivTerms = "(y'''|y''|y'|y\\^\\(\\d+\\)|y)";
-        normalized = normalized.replaceAll("([+-])(?!\\s*\\d|\\s*\\.)\\s*" + derivTerms, "$11$2");
+        normalized = normalized.replaceAll("([+-])(?!\\d|\\.)" + derivTerms, "$11$2");
         
         return normalized;
     }

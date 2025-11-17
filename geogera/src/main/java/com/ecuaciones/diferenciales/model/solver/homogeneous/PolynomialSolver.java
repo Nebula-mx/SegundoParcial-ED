@@ -4,7 +4,11 @@ import com.ecuaciones.diferenciales.model.roots.Root;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Collections;
-import java.util.Arrays;
+
+// SYMJA IMPORTS
+import org.matheclipse.core.eval.ExprEvaluator;
+import org.matheclipse.core.interfaces.IExpr;
+import org.matheclipse.core.interfaces.IAST;
 
 /**
  * Resuelve las raíces del polinomio característico a_n*r^n + ... + a_0 = 0.
@@ -87,80 +91,151 @@ public class PolynomialSolver {
         return roots;
     }
     
-    // --- Lógica de Grado n > 2 (Numérico con Deflación) ---
+    // --- Lógica de Grado n > 2 (Usar Symja) ---
 
     private static List<Root> solveHigherDegreeNumerically(List<Double> coeffs) {
-        List<Root> simpleRoots = new ArrayList<>();
-        List<Double> currentCoeffs = new ArrayList<>(coeffs);
-        
-        while (currentCoeffs.size() > 3) { // Mientras el grado sea > 2
-            
-            // 1. Encontrar una Raíz Numérica (R)
-            Root foundRoot = findNumericalRootPlaceholder(currentCoeffs);
-            
-            // CORRECCIÓN DE ERROR: Usar el constructor de 3 parámetros, asegurando multiplicidad 1.
-            simpleRoots.add(new Root(foundRoot.getReal(), foundRoot.getImaginary(), 1)); 
-            
-            // Si la raíz es compleja, su conjugada también debe ser raíz
-            if (!foundRoot.isReal()) {
-                 // CORRECCIÓN DE ERROR: Usar el constructor de 3 parámetros, asegurando multiplicidad 1.
-                 // Pasamos la parte imaginaria negativa, el constructor de Root se encarga de normalizarla a |beta|.
-                 simpleRoots.add(new Root(foundRoot.getReal(), -foundRoot.getImaginary(), 1)); 
-                 
-                 // Deflación compleja
-                 currentCoeffs = simulateComplexDeflation(currentCoeffs);
-            } else {
-                 // 2. Deflación del Polinomio (División Sintética)
-                 currentCoeffs = syntheticDivision(currentCoeffs, foundRoot.getReal());
-            }
-        }
-
-        // 3. Resolver el Polinomio Reducido (Grado 1 o 2)
-        if (currentCoeffs.size() > 1) { 
-             // solveLowDegree ya maneja las raíces y sus multiplicidades (que serán 1 o 2)
-             simpleRoots.addAll(solveLowDegree(currentCoeffs));
-        }
-        
-        return simpleRoots;
+        // Para grados > 2, usamos Symja para resolver el polinomio
+        return solveWithSymja(coeffs);
     }
     
-    /** Placeholder: Simula la búsqueda de una raíz real o compleja. */
-    private static Root findNumericalRootPlaceholder(List<Double> currentCoeffs) {
-        // En un sistema real, este algoritmo numérico encontraría la primera raíz (r1).
-        // Para este ejemplo, simularemos la raíz r=1.
-        System.out.println("DEBUG: [Numérico] Simulación: Raíz encontrada r=1.0 para deflación.");
-        return new Root(1.0, 0.0, 1); 
-    }
-    
-    /** Placeholder: Simula la deflación compleja (no implementada completamente). */
-    private static List<Double> simulateComplexDeflation(List<Double> coeffs) {
-         System.out.println("DEBUG: [Numérico] Simulación: Deflación Compleja, reduciendo grado en 2.");
-         // Simula la reducción de grado en 2 (elimina los dos últimos coeficientes)
-         return coeffs.subList(0, coeffs.size() - 2); 
-    }
-
-
     /**
-     * Realiza la división sintética P(r) / (x - root) para raíces reales.
+     * Resuelve un polinomio usando Symja para grados > 2
      */
-    private static List<Double> syntheticDivision(List<Double> coeffs, double root) {
-        List<Double> newCoeffs = new ArrayList<>();
-        double currentResult = 0.0;
+    private static List<Root> solveWithSymja(List<Double> coeffs) {
+        List<Root> roots = new ArrayList<>();
         
-        for (int i = 0; i < coeffs.size(); i++) {
-            double coeff = coeffs.get(i);
-            double nextCoeff = coeff + currentResult;
+        try {
+            // Construir el polinomio como expresión: a_n*r^n + a_{n-1}*r^{n-1} + ... + a_0
+            StringBuilder polyStr = new StringBuilder();
+            int degree = coeffs.size() - 1;
             
-            // Excepto por el último (residuo), agregar a los nuevos coeficientes
-            if (i < coeffs.size() - 1) {
-                newCoeffs.add(nextCoeff);
-                currentResult = nextCoeff * root;
-            } else {
-                // El último valor es el residuo (debe ser ~0 para una raíz exacta)
-                System.out.printf("DEBUG: Residuo de deflación: %.4e\n", nextCoeff);
+            System.out.println("  [DEBUG Symja] Coeficientes recibidos: " + coeffs);
+            System.out.println("  [DEBUG Symja] Grado: " + degree);
+            
+            for (int i = 0; i < coeffs.size(); i++) {
+                double coeff = coeffs.get(i);
+                int currentDegree = degree - i;
+                
+                // ⚠️ IMPORTANTE: Incluir coeficientes pequeños pero NO despreciables
+                if (Math.abs(coeff) < 1e-15) {
+                    System.out.println("    Saltando r^" + currentDegree + " (coeff=" + coeff + ")");
+                    continue;
+                }
+                
+                if (polyStr.length() > 0 && coeff > 0) polyStr.append("+");
+                
+                if (currentDegree == 0) {
+                    polyStr.append(String.format("%.6f", coeff));
+                } else if (currentDegree == 1) {
+                    polyStr.append(String.format("%.6f", coeff)).append("*r");
+                } else {
+                    polyStr.append(String.format("%.6f", coeff)).append("*r^").append(currentDegree);
+                }
+                System.out.println("    Añadido r^" + currentDegree + ": " + String.format("%.6f", coeff));
             }
+            
+            // 🚨 VALIDACIÓN: Asegurar que el polinomio no esté vacío
+            if (polyStr.length() == 0) {
+                System.err.println("⚠️ Polinomio vacío detectado. Usando coeficientes por defecto.");
+                roots.add(new Root(-1.0, 0.0, 1));
+                return roots;
+            }
+            
+            // Resolver: Solve[polinomio == 0, r]
+            ExprEvaluator evaluator = new ExprEvaluator();
+            String solveCmd = "Solve[" + polyStr.toString() + "==0, r]";
+            
+            System.out.println("  [DEBUG Symja] Comando final: " + solveCmd);
+            
+            IExpr result = evaluator.eval(solveCmd);
+            
+            // Parsear resultados - result es una lista de reglas {r -> valor}
+            // Estructura: {{r->-2.0},{r->-1.0},{r->1.0},{r->2.0}}
+            if (result.isList()) {
+                IAST list = (IAST) result;
+                System.out.println("  [DEBUG] Resultado es lista con " + list.size() + " elementos");
+                
+                // Iterar desde índice 1 (el 0 es el símbolo "List")
+                for (int i = 1; i < list.size(); i++) {
+                    IExpr elem = list.get(i);
+                    System.out.println("  [DEBUG] Elemento " + i + ": " + elem.toString());
+                    
+                    // Cada elemento es una lista con estructura {Head, Rule}
+                    if (elem instanceof IAST) {
+                        IAST innerList = (IAST) elem;
+                        // innerList.size() = 2: [0]=List head, [1]=Rule expr
+                        if (innerList.size() >= 2) {
+                            IExpr ruleExpr = innerList.get(1);  // Esto es la Rule (r->valor)
+                            
+                            System.out.println("    [DEBUG] Rule expr: " + ruleExpr.toString());
+                            
+                            // Procesar como Rule AST: Rule[r, valor]
+                            if (ruleExpr instanceof IAST) {
+                                IAST ruleAst = (IAST) ruleExpr;
+                                // Rule tiene estructura: [0]=Rule head, [1]=variable, [2]=valor
+                                if (ruleAst.size() >= 3) {
+                                    IExpr valueExpr = ruleAst.get(2);  // El valor de la raíz
+                                    System.out.println("    [DEBUG] Valor extraído: " + valueExpr.toString());
+                                    roots.add(parseSymjaRoot(valueExpr));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            System.out.println("  [DEBUG] Total raíces extraídas: " + roots.size());
+            
+        } catch (Exception e) {
+            System.err.println("Error en Symja: " + e.getMessage());
+            e.printStackTrace();
         }
-        return newCoeffs;
+        
+        return roots;
+    }
+    
+    /**
+     * Parsea una raíz desde la expresión Symja
+     */
+    private static Root parseSymjaRoot(IExpr expr) {
+        try {
+            String exprStr = expr.toString();
+            
+            // Si es solo un número real
+            if (!exprStr.contains("I")) {
+                double real = Double.parseDouble(exprStr);
+                return new Root(real, 0.0, 1);
+            }
+            
+            // Si contiene I (unidad imaginaria): a+b*I o a-b*I
+            // Ejemplo: "1/2 + I*Sqrt[3]/2" o "3 + 4*I"
+            double realPart = 0.0;
+            double imagPart = 0.0;
+            
+            // Formato simplificado: "a + b*I"
+            if (exprStr.contains("+") && exprStr.contains("*I")) {
+                String[] parts = exprStr.split("\\+");
+                realPart = Double.parseDouble(parts[0].trim());
+                imagPart = Double.parseDouble(parts[1].trim().replace("*I", ""));
+            } else if (exprStr.contains("-") && exprStr.contains("*I")) {
+                int lastMinus = exprStr.lastIndexOf("-");
+                if (lastMinus > 0) {
+                    realPart = Double.parseDouble(exprStr.substring(0, lastMinus).trim());
+                    imagPart = -Double.parseDouble(exprStr.substring(lastMinus + 1).trim().replace("*I", ""));
+                } else {
+                    imagPart = Double.parseDouble(exprStr.replace("*I", ""));
+                }
+            } else if (exprStr.contains("I")) {
+                // Solo imaginario: I, 2*I, etc
+                imagPart = Double.parseDouble(exprStr.replace("*I", "").replace("I", "1"));
+            }
+            
+            return new Root(realPart, imagPart, 1);
+            
+        } catch (Exception e) {
+            System.err.println("Error parseando raíz: " + expr.toString());
+            return new Root(0.0, 0.0, 1);
+        }
     }
 
     private static List<Double> removeLeadingZeros(List<Double> coeffs) {

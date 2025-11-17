@@ -38,23 +38,25 @@
         <h3>Condiciones Iniciales</h3>
         <legend>Define los valores iniciales conocidos</legend>
         <form>
-          <input type="text" class="IC-variableValues" name="initialConditions" placeholder="y(0)" required><br><br>
-          <input type="text" class="IC-variableResult" name="initialConditions" placeholder="Valor" required><br><br>
-          <button type="button" onclick="addInitialCondition()">Agregar otra condición inicial</button>
+          <div class="formDoubleInputsContainer">
+            <input type="text" class="IC-variableValues" name="initialConditions" placeholder="y(0)" required value="y(0)">
+            <input type="text" class="IC-variableResult" name="initialConditions" placeholder="Valor" required>
+          </div>
         </form>
-        <button type="submit" formmethod="post" formaction="solve">Resolver Ecuación</button>
+      <button type="button" onclick="addInitialCondition()">Agregar otra condición</button>
       </section>
+      <button id="resolveEquation" type="submit" formmethod="post" formaction="solve">Resolver Ecuación</button>
     </aside>
     <main id="EQ-resolutionMain">
       <section id="EQ-resMethod">
         <h3>Métodos de Resolución</h3>
         <legend>Selecciona el método que deseas utilizar para resolver la ecuación</legend>
-        <div>
+        <div id="resMethod-select">
           <input type="radio" id="method1" name="method" value="method1" checked>
-          <label for="method1">Coeficientes Indeterminados</label><br>
+          <label for="method1">Coeficientes Indeterminados</label>
 
           <input type="radio" id="method2" name="method" value="method2">
-          <label for="method2">Variacion de Parámetros</label><br>
+          <label for="method2">Variacion de Parámetros</label>
         </div>
       </section>
       <section id="EQ-finalRes">

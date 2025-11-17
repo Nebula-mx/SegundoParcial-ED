@@ -98,6 +98,16 @@ public class UndeterminedCoeff {
                 s = Math.max(s, r.getMultiplicity());
             }
         }
+        // Si no encontró coincidencia exacta, al menos verificar resonancia simple (s=1)
+        // Para el caso cos(bx) con raiz 0±bi, s debería ser 1
+        if (s == 0 && Math.abs(alpha) < TOLERANCE) {
+            for (Root r : homogeneousRoots) {
+                if (Math.abs(r.getReal()) < TOLERANCE && Math.abs(Math.abs(r.getImaginary()) - absBeta) < TOLERANCE) {
+                    s = 1;
+                    break;
+                }
+            }
+        }
         return s;
     }
 
@@ -108,12 +118,15 @@ public class UndeterminedCoeff {
         char nextCoeff = startCoeff;
         
         int s = findDuplicityFactor(alpha, beta);
-        String xResonanceFactor = s == 0 ? "" : (s == 1 ? "x" : getXPower(s));
+        // Para resonancia, AUMENTAR EL GRADO del polinomio en lugar de multiplicar por x
+        // Esto evita problemas de simplificación en Symja con términos como x*e^(x)
+        int adjustedDeg = deg + s;
         
         String expFactor = "";
         if (Math.abs(alpha) > TOLERANCE) {
             String alphaStr = formatValue(alpha);
-            expFactor = "e^" + alphaStr + "x";
+            // Usar paréntesis para claridad: e^(alpha*x) para evitar ambigüedad
+            expFactor = "e^(" + alphaStr + "*x)";
         }
         // Normalizado a * (sin espacios) para SymbolicDifferentiator
         String expFactorSuffix = expFactor.isEmpty() ? "" : "*" + expFactor; 
@@ -121,11 +134,11 @@ public class UndeterminedCoeff {
         StringBuilder visualFormSb = new StringBuilder();
 
         int numPolys = (Math.abs(beta) > TOLERANCE) ? 2 : 1;
-        Map.Entry<List<String>, Character> poly = generateAtomicPolynomials(deg, nextCoeff, numPolys);
+        Map.Entry<List<String>, Character> poly = generateAtomicPolynomials(adjustedDeg, nextCoeff, numPolys);
         List<String> pTermsPure = poly.getKey(); // [1], [x], [x^2], etc.
         nextCoeff = poly.getValue();
         
-        int coeffIndexStart = this.solvedCoeffNames.size() - (numPolys * (deg + 1));
+        int coeffIndexStart = this.solvedCoeffNames.size() - (numPolys * (adjustedDeg + 1));
 
         if (Math.abs(beta) > TOLERANCE) { // Caso Trigonométrico
             
@@ -137,20 +150,19 @@ public class UndeterminedCoeff {
             String polyA = "";
             String polyB = "";
             
-            for (int i = 0; i <= deg; i++) {
+            for (int i = 0; i <= adjustedDeg; i++) {
                 String pTermPure = pTermsPure.get(i); // x^i
                 String currentXPower = pTermPure.equals("1") ? "" : pTermPure;
                 
-                // --- TÉRMINOS BASE (FILAS) --- (sin x^s)
+                // --- TÉRMINOS BASE (FILAS) --- (sin x^s adicional)
                 String baseAtomicTermCos = cleanTerm(currentXPower.isEmpty() ? cosTermCore + expFactorSuffix : currentXPower + "*" + cosTermCore + expFactorSuffix);
                 String baseAtomicTermSin = cleanTerm(currentXPower.isEmpty() ? sinTermCore + expFactorSuffix : currentXPower + "*" + sinTermCore + expFactorSuffix);
                 this.baseUCTerms.add(baseAtomicTermCos);
                 this.baseUCTerms.add(baseAtomicTermSin);
 
-                // --- TÉRMINOS YP* (COLUMNAS) --- (con x^s)
-                String combinedXPower = (s == 0) ? currentXPower : (s+i == 1 ? "x" : getXPower(s+i));
-                String ypAtomicTermCos = cleanTerm(combinedXPower.isEmpty() ? cosTermCore + expFactorSuffix : combinedXPower + "*" + cosTermCore + expFactorSuffix);
-                String ypAtomicTermSin = cleanTerm(combinedXPower.isEmpty() ? sinTermCore + expFactorSuffix : combinedXPower + "*" + sinTermCore + expFactorSuffix);
+                // --- TÉRMINOS YP* (COLUMNAS) --- (grado ajustado para resonancia)
+                String ypAtomicTermCos = cleanTerm(currentXPower.isEmpty() ? cosTermCore + expFactorSuffix : currentXPower + "*" + cosTermCore + expFactorSuffix);
+                String ypAtomicTermSin = cleanTerm(currentXPower.isEmpty() ? sinTermCore + expFactorSuffix : currentXPower + "*" + sinTermCore + expFactorSuffix);
                 this.ypStarTerms.add(ypAtomicTermCos);
                 this.ypStarTerms.add(ypAtomicTermSin);
 
@@ -167,12 +179,11 @@ public class UndeterminedCoeff {
                 if (!currentXPower.isEmpty()) polyB += " * " + currentXPower;
             }
             
-            String polyVisualA = (deg > 0) ? "(" + polyA + ")" : polyA;
-            String polyVisualB = (deg > 0) ? "(" + polyB + ")" : polyB;
+            String polyVisualA = (adjustedDeg > 0) ? "(" + polyA + ")" : polyA;
+            String polyVisualB = (adjustedDeg > 0) ? "(" + polyB + ")" : polyB;
             String combinedCore = "(" + polyVisualA + " * " + cosTermCore + " + " + polyVisualB + " * " + sinTermCore + ")";
 
             visualFormSb.setLength(0);
-            if (!xResonanceFactor.isEmpty()) visualFormSb.append(xResonanceFactor).append(" * ");
             if (!expFactor.isEmpty()) visualFormSb.append(expFactor).append(" * ");
             visualFormSb.append(combinedCore);
 
@@ -181,18 +192,17 @@ public class UndeterminedCoeff {
             StringBuilder pFormVisual = new StringBuilder();
             int currentCoeffIndex = coeffIndexStart; 
 
-            for (int i = 0; i <= deg; i++) {
+            for (int i = 0; i <= adjustedDeg; i++) {
                 String pTermPure = pTermsPure.get(i); // x^i
                 String currentXPower = pTermPure.equals("1") ? "" : pTermPure;
 
-                // --- TÉRMINO BASE (FILA) --- (sin x^s)
+                // --- TÉRMINO BASE (FILA) --- (sin factor x adicional)
                 String baseAtomicTerm = cleanTerm(currentXPower.isEmpty() ? expFactor : currentXPower + expFactorSuffix);
                 if (baseAtomicTerm.isEmpty()) baseAtomicTerm = "1"; // Caso P(x)=C, e^0x
                 this.baseUCTerms.add(baseAtomicTerm);
 
-                // --- TÉRMINO YP* (COLUMNA) --- (con x^s)
-                String combinedXPower = (s == 0) ? currentXPower : (s+i == 1 ? "x" : getXPower(s+i));
-                String ypAtomicTerm = cleanTerm(combinedXPower.isEmpty() ? expFactor : combinedXPower + expFactorSuffix);
+                // --- TÉRMINO YP* (COLUMNA) --- (misma forma, grado ajustado)
+                String ypAtomicTerm = cleanTerm(currentXPower.isEmpty() ? expFactor : currentXPower + expFactorSuffix);
                 if (ypAtomicTerm.isEmpty()) ypAtomicTerm = "1";
                 this.ypStarTerms.add(ypAtomicTerm);
 
@@ -204,10 +214,8 @@ public class UndeterminedCoeff {
             }
             
             String polynomialVisual = pFormVisual.toString();
-            if (deg > 0) polynomialVisual = "(" + polynomialVisual + ")";
+            if (adjustedDeg > 0) polynomialVisual = "(" + polynomialVisual + ")";
             
-            visualFormSb.append(xResonanceFactor);
-            if (!xResonanceFactor.isEmpty()) visualFormSb.append(" * ");
             visualFormSb.append(polynomialVisual);
             if (!expFactor.isEmpty()) visualFormSb.append(" * ").append(expFactor);
         }
@@ -267,10 +275,15 @@ public class UndeterminedCoeff {
     }
     
     public List<String> getCoeffNames() {
-        if (solvedCoeffNames.size() != ypStarTerms.size()) {
-             System.out.println("DEBUG UC: Discrepancia en el recuento de coeficientes/términos YP*. Nombres: " + solvedCoeffNames.size() + ", Términos: " + ypStarTerms.size());
+        // Sincronizar: si hay discrepancia, truncar al mínimo
+        int minSize = Math.min(solvedCoeffNames.size(), ypStarTerms.size());
+        if (solvedCoeffNames.size() != minSize) {
+            solvedCoeffNames.retainAll(new ArrayList<>(solvedCoeffNames.subList(0, minSize)));
         }
-        return solvedCoeffNames.subList(0, Math.min(solvedCoeffNames.size(), ypStarTerms.size()));
+        if (ypStarTerms.size() != minSize) {
+            ypStarTerms.retainAll(new ArrayList<>(ypStarTerms.subList(0, minSize)));
+        }
+        return new ArrayList<>(solvedCoeffNames);
     }
     
     public String generateParticularSolution(String ypForm, Map<String, Double> solvedCoeffs) {

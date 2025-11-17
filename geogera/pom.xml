@@ -9,8 +9,24 @@
         <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
+        <spring-boot.version>3.1.5</spring-boot.version>
+        <main.class>com.ecuaciones.diferenciales.Main</main.class>
     </properties>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.1.5</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
     <dependencies>
+        <!-- Spring Boot Starters -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- JavaFX -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
@@ -21,11 +37,43 @@
             <artifactId>javafx-fxml</artifactId>
             <version>17.0.8</version>
         </dependency>
+<<<<<<< HEAD
         <!-- https://mvnrepository.com/artifact/org.matheclipse/matheclipse-core -->
         <dependency>
             <groupId>org.matheclipse</groupId>
             <artifactId>matheclipse-core</artifactId>
             <version>3.0.0</version>
+=======
+
+        <!-- Gson -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+        </dependency>
+
+        <!-- Jackson (incluido en spring-boot-starter-web) -->
+
+        <!-- Commons Lang para utilidades -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JUnit Jupiter (incluido en spring-boot-starter-test) -->
+
+        <!-- Symja - Computer Algebra System -->
+        <dependency>
+            <groupId>org.matheclipse</groupId>
+            <artifactId>matheclipse-core</artifactId>
+            <version>2.0.0</version>
+>>>>>>> a61f68bd38e5da957a670474630634a90695161d
         </dependency>
     </dependencies>
     <build>
@@ -54,7 +102,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>com.ecuaciones.diferenciales.Main</mainClass>
+                    <mainClass>${main.class}</mainClass>
                 </configuration>
             </plugin>
         </plugins>

@@ -1,0 +1,71 @@
+{
+  "exampleResponse": {
+    "status": "SUCCESS",
+    "message": "Ecuación resuelta exitosamente",
+    "equation": "y' + y = 0",
+    "variable": "x",
+    "steps": [
+      {
+        "type": "CLASSIFY",
+        "title": "📖 Parsing de la ecuación",
+        "order": 1,
+        "expressions": ["Entrada: y' + y = 0"],
+        "explanation": "Convertir la ecuación textual a estructura interna",
+        "details": {}
+      },
+      {
+        "type": "CLASSIFY",
+        "title": "🏷️ Clasificación de la EDO",
+        "order": 2,
+        "expressions": ["EDO de orden 1, Homogénea"],
+        "details": {
+          "Tipo": "Homogénea",
+          "Orden": "1"
+        },
+        "explanation": "La ecuación es de orden 1 y homogénea"
+      },
+      {
+        "type": "CHARACTERISTIC",
+        "title": "📐 Formar la ecuación característica",
+        "order": 3,
+        "expressions": ["r + 1 = 0"],
+        "details": {
+          "Método": "Sustitución exponencial"
+        },
+        "explanation": "Reemplazar y con e^(rx)"
+      },
+      {
+        "type": "ROOTS",
+        "title": "🔍 Encontrar las raíces",
+        "order": 4,
+        "expressions": ["r = -1"],
+        "details": {
+          "Tipo de raíces": "Reales Distintas"
+        },
+        "explanation": "Se obtiene una raíz real: r = -1"
+      },
+      {
+        "type": "HOMOGENEOUS_SOLUTION",
+        "title": "✨ Construir la solución homogénea",
+        "order": 5,
+        "expressions": ["y(x) = C₁*e^(-x)"],
+        "details": {
+          "Número de constantes": "1"
+        },
+        "explanation": "La solución general es y(x) = C₁*e^(-x)"
+      }
+    ],
+    "finalSolution": "y(x) = C₁*e^(-x)",
+    "solutionLatex": "$y(x) = C₁ \\cdot e^{-x}$",
+    "metadata": {
+      "Orden": "1",
+      "Tipo": "Homogénea",
+      "Pasos totales": "5",
+      "Raíces": "Reales Distintas",
+      "Método": "Ecuación característica"
+    },
+    "executionTimeMs": 4,
+    "stepCount": 5,
+    "success": true
+  }
+}
