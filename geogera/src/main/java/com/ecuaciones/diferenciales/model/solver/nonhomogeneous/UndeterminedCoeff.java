@@ -87,56 +87,57 @@ public class UndeterminedCoeff {
         return new java.util.AbstractMap.SimpleEntry<>(polynomialTerms, currentCoeff);
     }
 
+    /**
+     * Lógica de resonancia simplificada y correcta.
+     * Comprueba si (alpha, beta) de g(x) coincide con una raíz homogénea.
+     */
     private int findDuplicityFactor(double alpha, double beta) {
         int s = 0;
         double absBeta = Math.abs(beta);
+        
         for (Root r : homogeneousRoots) {
             double rAlpha = r.getReal();
-            double rBeta = r.getImaginary();
+            double rBeta = Math.abs(r.getImaginary());  // Comparar magnitudes de beta
             
+            // Comprueba si la raíz (alpha, beta) de g(x) coincide con una raíz homogénea (rAlpha, rBeta)
             if (Math.abs(alpha - rAlpha) < TOLERANCE && Math.abs(absBeta - rBeta) < TOLERANCE) {
+                // s es la multiplicidad de esa raíz
                 s = Math.max(s, r.getMultiplicity());
-            }
-        }
-        // Si no encontró coincidencia exacta, al menos verificar resonancia simple (s=1)
-        // Para el caso cos(bx) con raiz 0±bi, s debería ser 1
-        if (s == 0 && Math.abs(alpha) < TOLERANCE) {
-            for (Root r : homogeneousRoots) {
-                if (Math.abs(r.getReal()) < TOLERANCE && Math.abs(Math.abs(r.getImaginary()) - absBeta) < TOLERANCE) {
-                    s = 1;
-                    break;
-                }
             }
         }
         return s;
     }
 
+    /**
+     * Genera la forma de yp* usando la REGLA MATEMÁTICA CORRECTA para la resonancia.
+     * yp* = x^s * (Polinomio_grado_deg * ...)
+     */
     private Map.Entry<String, Character> getFormForSingleTerm(FunctionAnalyzer.AnalyzedTerm analyzedTerm, char startCoeff) {
         double alpha = analyzedTerm.alpha;
         double beta = analyzedTerm.beta;
-        int deg = analyzedTerm.degree;
+        int deg = analyzedTerm.degree; // Grado original del polinomio en g(x)
         char nextCoeff = startCoeff;
         
+        // 1. OBTENER FACTOR DE RESONANCIA (s)
         int s = findDuplicityFactor(alpha, beta);
-        // 🔧 CORRECCIÓN MATEMÁTICA: No alterar el grado del polinomio
-        // Usar el grado DEL POLINOMIO g(x) tal cual es (deg, no deg + s)
-        // La resonancia se maneja multiplicando POR x^s, no aumentando el grado
-        
+        String xResonanceFactor = (s == 0) ? "" : (s == 1) ? "x" : getXPower(s);
+        String xResonanceSuffix = xResonanceFactor.isEmpty() ? "" : xResonanceFactor + "*";
+
+        // 2. OBTENER FACTOR EXPONENCIAL
         String expFactor = "";
         if (Math.abs(alpha) > TOLERANCE) {
             String alphaStr = formatValue(alpha);
-            // Usar paréntesis para claridad: e^(alpha*x) para evitar ambigüedad
-            expFactor = "e^(" + alphaStr + "*x)";
+            // Usar paréntesis para Symja
+            expFactor = "e^(" + alphaStr + "*x)"; 
         }
-        // Normalizado a * (sin espacios) para SymbolicDifferentiator
         String expFactorSuffix = expFactor.isEmpty() ? "" : "*" + expFactor; 
 
         StringBuilder visualFormSb = new StringBuilder();
 
-        int numPolys = (Math.abs(beta) > TOLERANCE) ? 2 : 1;
-        // Generar términos del polinomio solo con el grado ORIGINAL
+        // 3. GENERAR POLINOMIOS (BASADOS EN 'deg', NO 'adjustedDeg')
+        int numPolys = (Math.abs(beta) > TOLERANCE) ? 2 : 1; // 1 para real/exp, 2 para trig
         Map.Entry<List<String>, Character> poly = generateAtomicPolynomials(deg, nextCoeff, numPolys);
-        List<String> pTermsPure = poly.getKey(); // [1], [x], [x^2], etc.
+        List<String> pTermsPure = poly.getKey(); // [1, x, x^2]
         nextCoeff = poly.getValue();
         
         int coeffIndexStart = this.solvedCoeffNames.size() - (numPolys * (deg + 1));
@@ -145,40 +146,30 @@ public class UndeterminedCoeff {
             
             double absBeta = Math.abs(beta);
             String betaStr = formatValue(absBeta);
-            String cosTermCore = "cos(" + betaStr + "x)";
-            String sinTermCore = "sin(" + betaStr + "x)";
+            // CORRECCIÓN de notación para Symja
+            String trigArg = (betaStr.equals("1") || betaStr.isEmpty()) ? "x" : betaStr + "*x"; 
+            
+            String cosTermCore = "cos(" + trigArg + ")";
+            String sinTermCore = "sin(" + trigArg + ")";
             
             String polyA = "";
             String polyB = "";
-            String polyAResonant = "";  // Para y_p* con resonancia
-            String polyBResonant = "";  // Para y_p* con resonancia
             
-            for (int i = 0; i <= deg; i++) {
+            for (int i = 0; i <= deg; i++) { // <-- BUCLE HASTA 'deg'
                 String pTermPure = pTermsPure.get(i); // x^i
                 String currentXPower = pTermPure.equals("1") ? "" : pTermPure;
+                String xPowerSuffix = currentXPower.isEmpty() ? "" : currentXPower + "*";
                 
-                // --- TÉRMINOS BASE (FILAS) --- (sin factor x^s)
-                String baseAtomicTermCos = cleanTerm(currentXPower.isEmpty() ? cosTermCore + expFactorSuffix : currentXPower + "*" + cosTermCore + expFactorSuffix);
-                String baseAtomicTermSin = cleanTerm(currentXPower.isEmpty() ? sinTermCore + expFactorSuffix : currentXPower + "*" + sinTermCore + expFactorSuffix);
+                // --- TÉRMINOS BASE (FILAS) --- (SIN resonancia x^s)
+                String baseAtomicTermCos = cleanTerm(xPowerSuffix + cosTermCore + expFactorSuffix);
+                String baseAtomicTermSin = cleanTerm(xPowerSuffix + sinTermCore + expFactorSuffix);
                 this.baseUCTerms.add(baseAtomicTermCos);
                 this.baseUCTerms.add(baseAtomicTermSin);
 
-                // --- TÉRMINOS YP* (COLUMNAS) --- (multiplicar por x^s para resonancia)
-                String resonanceXFactor = (s > 0) ? getXPower(s) : "";
-                String xsTimesXi = "";
-                if (resonanceXFactor.isEmpty()) {
-                    // Sin resonancia: usar el término original
-                    xsTimesXi = currentXPower;
-                } else if (currentXPower.isEmpty()) {
-                    // Con resonancia, x^i = 1: usar solo x^s
-                    xsTimesXi = resonanceXFactor;
-                } else {
-                    // Con resonancia, x^i != 1: multiplicar x^s * x^i = x^(s+i)
-                    xsTimesXi = "x^" + (s + i);
-                }
-                
-                String ypAtomicTermCos = cleanTerm(xsTimesXi.isEmpty() ? cosTermCore + expFactorSuffix : xsTimesXi + "*" + cosTermCore + expFactorSuffix);
-                String ypAtomicTermSin = cleanTerm(xsTimesXi.isEmpty() ? sinTermCore + expFactorSuffix : xsTimesXi + "*" + sinTermCore + expFactorSuffix);
+                // --- TÉRMINOS YP* (COLUMNAS) --- (CON resonancia x^s)
+                // Se multiplica el término base por x^s
+                String ypAtomicTermCos = cleanTerm(xResonanceSuffix + baseAtomicTermCos);
+                String ypAtomicTermSin = cleanTerm(xResonanceSuffix + baseAtomicTermSin);
                 this.ypStarTerms.add(ypAtomicTermCos);
                 this.ypStarTerms.add(ypAtomicTermSin);
 
@@ -189,70 +180,38 @@ public class UndeterminedCoeff {
                 if (polyA.length() > 0) polyA += " + ";
                 polyA += coeffNameA;
                 if (!currentXPower.isEmpty()) polyA += " * " + currentXPower;
-                
-                if (s > 0) {
-                    // Con resonancia, agregar x^s*x^i a polyAResonant
-                    if (polyAResonant.length() > 0) polyAResonant += " + ";
-                    polyAResonant += coeffNameA;
-                    if (!xsTimesXi.isEmpty()) polyAResonant += " * " + xsTimesXi;
-                }
 
                 if (polyB.length() > 0) polyB += " + ";
                 polyB += coeffNameB;
                 if (!currentXPower.isEmpty()) polyB += " * " + currentXPower;
-                
-                if (s > 0) {
-                    if (polyBResonant.length() > 0) polyBResonant += " + ";
-                    polyBResonant += coeffNameB;
-                    if (!xsTimesXi.isEmpty()) polyBResonant += " * " + xsTimesXi;
-                }
             }
             
             String polyVisualA = (deg > 0) ? "(" + polyA + ")" : polyA;
             String polyVisualB = (deg > 0) ? "(" + polyB + ")" : polyB;
-            
-            String combinedCore;
-            if (s > 0) {
-                // Con resonancia: x^s * (P_A(x)*cos(bx) + P_B(x)*sin(bx))
-                String resonanceXPower = getXPower(s);
-                String polyVisualARes = (deg > 0) ? "(" + polyAResonant + ")" : polyAResonant;
-                String polyVisualBRes = (deg > 0) ? "(" + polyBResonant + ")" : polyBResonant;
-                combinedCore = "(" + resonanceXPower + " * " + "(" + polyVisualARes + " * " + cosTermCore + " + " + polyVisualBRes + " * " + sinTermCore + "))";
-            } else {
-                // Sin resonancia: (P_A(x)*cos(bx) + P_B(x)*sin(bx))
-                combinedCore = "(" + polyVisualA + " * " + cosTermCore + " + " + polyVisualB + " * " + sinTermCore + ")";
-            }
+            String combinedCore = "(" + polyVisualA + " * " + cosTermCore + " + " + polyVisualB + " * " + sinTermCore + ")";
 
             visualFormSb.setLength(0);
+            if (!xResonanceFactor.isEmpty()) visualFormSb.append(xResonanceFactor).append(" * ");
             if (!expFactor.isEmpty()) visualFormSb.append(expFactor).append(" * ");
             visualFormSb.append(combinedCore);
 
         } else { // Caso Polinomial o Exponencial
             
             StringBuilder pFormVisual = new StringBuilder();
-            StringBuilder pFormVisualResonant = new StringBuilder();
             int currentCoeffIndex = coeffIndexStart; 
 
-            for (int i = 0; i <= deg; i++) {
+            for (int i = 0; i <= deg; i++) { // <-- BUCLE HASTA 'deg'
                 String pTermPure = pTermsPure.get(i); // x^i
                 String currentXPower = pTermPure.equals("1") ? "" : pTermPure;
+                String xPowerSuffix = currentXPower.isEmpty() ? "" : currentXPower + "*";
 
-                // --- TÉRMINO BASE (FILA) --- (sin factor x^s)
-                String baseAtomicTerm = cleanTerm(currentXPower.isEmpty() ? expFactor : currentXPower + expFactorSuffix);
+                // --- TÉRMINO BASE (FILA) --- (SIN resonancia x^s)
+                String baseAtomicTerm = cleanTerm(xPowerSuffix + expFactor);
                 if (baseAtomicTerm.isEmpty()) baseAtomicTerm = "1"; // Caso P(x)=C, e^0x
                 this.baseUCTerms.add(baseAtomicTerm);
 
-                // --- TÉRMINO YP* (COLUMNA) --- (con resonancia x^s si aplica)
-                String xsTimesXi = "";
-                if (s > 0) {
-                    // Con resonancia: x^s * x^i
-                    xsTimesXi = (i == 0) ? getXPower(s) : "x^" + (s + i);
-                } else {
-                    // Sin resonancia: solo x^i
-                    xsTimesXi = currentXPower;
-                }
-                
-                String ypAtomicTerm = cleanTerm(xsTimesXi.isEmpty() ? expFactor : xsTimesXi + expFactorSuffix);
+                // --- TÉRMINO YP* (COLUMNA) --- (CON resonancia x^s)
+                String ypAtomicTerm = cleanTerm(xResonanceSuffix + baseAtomicTerm);
                 if (ypAtomicTerm.isEmpty()) ypAtomicTerm = "1";
                 this.ypStarTerms.add(ypAtomicTerm);
 
@@ -261,28 +220,16 @@ public class UndeterminedCoeff {
                 if (pFormVisual.length() > 0) pFormVisual.append(" + ");
                 pFormVisual.append(currentCoeffName); 
                 if (!pTermPure.equals("1")) pFormVisual.append(" * ").append(pTermPure);
-                
-                if (s > 0) {
-                    if (pFormVisualResonant.length() > 0) pFormVisualResonant.append(" + ");
-                    pFormVisualResonant.append(currentCoeffName);
-                    if (!xsTimesXi.isEmpty()) pFormVisualResonant.append(" * ").append(xsTimesXi);
-                }
             }
             
             String polynomialVisual = pFormVisual.toString();
             if (deg > 0) polynomialVisual = "(" + polynomialVisual + ")";
             
+            // Ensamblaje Visual: x^s * P(x) * e^(ax)
+            visualFormSb.setLength(0);
+            if (!xResonanceFactor.isEmpty()) visualFormSb.append(xResonanceFactor).append(" * ");
             visualFormSb.append(polynomialVisual);
             if (!expFactor.isEmpty()) visualFormSb.append(" * ").append(expFactor);
-            
-            // Si hay resonancia, mostrar visualmente con x^s multiplicado
-            if (s > 0) {
-                String polynomialVisualRes = pFormVisualResonant.toString();
-                if (deg > 0) polynomialVisualRes = "(" + polynomialVisualRes + ")";
-                visualFormSb.setLength(0);
-                visualFormSb.append(polynomialVisualRes);
-                if (!expFactor.isEmpty()) visualFormSb.append(" * ").append(expFactor);
-            }
         }
         
         return new java.util.AbstractMap.SimpleEntry<>(cleanTerm(visualFormSb.toString()), nextCoeff);

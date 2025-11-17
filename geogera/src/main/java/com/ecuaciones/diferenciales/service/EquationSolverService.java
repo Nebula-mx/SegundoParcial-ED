@@ -14,6 +14,7 @@ import com.ecuaciones.diferenciales.model.solver.homogeneous.PolynomialSolver;
 import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.UndeterminedCoeff;
 import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.UndeterminedCoeffResolver;
 import com.ecuaciones.diferenciales.model.solver.nonhomogeneous.VariationOfParametersSolverV2;
+import com.ecuaciones.diferenciales.utils.SymbolicDifferentiator;
 import com.ecuaciones.diferenciales.model.templates.ExpressionData;
 import com.ecuaciones.diferenciales.model.variation.WronskianCalculator;
 import com.ecuaciones.diferenciales.model.solver.InitialConditionsSolver;
@@ -182,6 +183,32 @@ public class EquationSolverService {
                         solution_p = ucSolver.generateParticularSolution(ypForm, solvedCoeffs);
                         steps.add("✓ UC exitoso");
                         method_used = "UC";
+
+                        // Verificación: comprobar que L[y_p] = g(x). Si no se cumple, marcar fallo y forzar VP
+                        try {
+                            String cleanedYpForCheck = solution_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
+                            StringBuilder lhsBuilder = new StringBuilder();
+                            for (int k = 0; k <= order; k++) {
+                                double a_k = coeffsArray[order - k];
+                                String deriv = SymbolicDifferentiator.calculateDerivative(cleanedYpForCheck, k);
+                                if (lhsBuilder.length() > 0) lhsBuilder.append(" + ");
+                                lhsBuilder.append("(").append(formatDouble(a_k)).append(")*").append("(").append(deriv).append(")");
+                            }
+                            String lhsExpr = lhsBuilder.toString();
+                            String residual = SymbolicDifferentiator.simplify("(" + lhsExpr + ") - (" + g_x + ")");
+                            // Si el residual no es 0, marcar fallo
+                            if (residual == null || !residual.equals("0")) {
+                                steps.add("⚠️ UC no satisface la EDO tras sustitución (residual!=0): " + residual);
+                                steps.add("Intentando Variación de Parámetros como fallback...");
+                                metodoPrincipalFallo = true;
+                                method_used = "UC (fallback -> VP)";
+                            }
+                        } catch (Exception exCheck) {
+                            // Si la verificación falla por algún error de simplificación, permitir fallback
+                            steps.add("⚠️ No se pudo verificar UC simbólicamente: " + exCheck.getMessage());
+                            metodoPrincipalFallo = true;
+                            method_used = "UC (fallback -> VP)";
+                        }
                         
                     } catch (ArithmeticException e) {
                         // Sistema singular - resonancia
@@ -377,6 +404,13 @@ public class EquationSolverService {
         result = result.replaceAll("\\s+", " ").trim();
         
         return result;
+    }
+
+    private String formatDouble(double value) {
+        if (Math.abs(value - Math.round(value)) < 1e-9) {
+            return String.valueOf((long)Math.round(value));
+        }
+        return String.format(java.util.Locale.US, "%s", value);
     }
     
     /**

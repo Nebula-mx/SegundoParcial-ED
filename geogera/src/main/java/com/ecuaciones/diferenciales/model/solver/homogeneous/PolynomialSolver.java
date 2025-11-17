@@ -109,16 +109,11 @@ public class PolynomialSolver {
             StringBuilder polyStr = new StringBuilder();
             int degree = coeffs.size() - 1;
             
-            System.out.println("  [DEBUG Symja] Coeficientes recibidos: " + coeffs);
-            System.out.println("  [DEBUG Symja] Grado: " + degree);
-            
             for (int i = 0; i < coeffs.size(); i++) {
                 double coeff = coeffs.get(i);
                 int currentDegree = degree - i;
                 
-                // ⚠️ IMPORTANTE: Incluir coeficientes pequeños pero NO despreciables
                 if (Math.abs(coeff) < 1e-15) {
-                    System.out.println("    Saltando r^" + currentDegree + " (coeff=" + coeff + ")");
                     continue;
                 }
                 
@@ -131,12 +126,10 @@ public class PolynomialSolver {
                 } else {
                     polyStr.append(String.format("%.6f", coeff)).append("*r^").append(currentDegree);
                 }
-                System.out.println("    Añadido r^" + currentDegree + ": " + String.format("%.6f", coeff));
             }
             
-            // 🚨 VALIDACIÓN: Asegurar que el polinomio no esté vacío
+            // Validación: Asegurar que el polinomio no esté vacío
             if (polyStr.length() == 0) {
-                System.err.println("⚠️ Polinomio vacío detectado. Usando coeficientes por defecto.");
                 roots.add(new Root(-1.0, 0.0, 1));
                 return roots;
             }
@@ -145,20 +138,15 @@ public class PolynomialSolver {
             ExprEvaluator evaluator = new ExprEvaluator();
             String solveCmd = "Solve[" + polyStr.toString() + "==0, r]";
             
-            System.out.println("  [DEBUG Symja] Comando final: " + solveCmd);
-            
             IExpr result = evaluator.eval(solveCmd);
             
             // Parsear resultados - result es una lista de reglas {r -> valor}
-            // Estructura: {{r->-2.0},{r->-1.0},{r->1.0},{r->2.0}}
             if (result.isList()) {
                 IAST list = (IAST) result;
-                System.out.println("  [DEBUG] Resultado es lista con " + list.size() + " elementos");
                 
                 // Iterar desde índice 1 (el 0 es el símbolo "List")
                 for (int i = 1; i < list.size(); i++) {
                     IExpr elem = list.get(i);
-                    System.out.println("  [DEBUG] Elemento " + i + ": " + elem.toString());
                     
                     // Cada elemento es una lista con estructura {Head, Rule}
                     if (elem instanceof IAST) {
@@ -167,15 +155,12 @@ public class PolynomialSolver {
                         if (innerList.size() >= 2) {
                             IExpr ruleExpr = innerList.get(1);  // Esto es la Rule (r->valor)
                             
-                            System.out.println("    [DEBUG] Rule expr: " + ruleExpr.toString());
-                            
                             // Procesar como Rule AST: Rule[r, valor]
                             if (ruleExpr instanceof IAST) {
                                 IAST ruleAst = (IAST) ruleExpr;
                                 // Rule tiene estructura: [0]=Rule head, [1]=variable, [2]=valor
                                 if (ruleAst.size() >= 3) {
                                     IExpr valueExpr = ruleAst.get(2);  // El valor de la raíz
-                                    System.out.println("    [DEBUG] Valor extraído: " + valueExpr.toString());
                                     roots.add(parseSymjaRoot(valueExpr));
                                 }
                             }
@@ -183,8 +168,6 @@ public class PolynomialSolver {
                     }
                 }
             }
-            
-            System.out.println("  [DEBUG] Total raíces extraídas: " + roots.size());
             
         } catch (Exception e) {
             System.err.println("Error en Symja: " + e.getMessage());
@@ -200,8 +183,6 @@ public class PolynomialSolver {
     private static Root parseSymjaRoot(IExpr expr) {
         try {
             String exprStr = expr.toString().trim();
-            
-            System.out.println("    [DEBUG parseRoot] Parsing: " + exprStr);
             
             // Si es solo un número real
             if (!exprStr.contains("I")) {
@@ -223,14 +204,12 @@ public class PolynomialSolver {
                 } else if (exprStr.startsWith("I*")) {
                     imagPart = Double.parseDouble(exprStr.substring(2).trim());
                 }
-                System.out.println("    [DEBUG parseRoot] Caso 1 (puro imaginario): imagPart=" + imagPart);
             }
             // Caso 2: Formato "a + b*I"
             else if (exprStr.contains("+") && exprStr.contains("*I")) {
                 String[] parts = exprStr.split("\\+");
                 realPart = Double.parseDouble(parts[0].trim());
                 imagPart = Double.parseDouble(parts[1].trim().replace("*I", "").trim());
-                System.out.println("    [DEBUG parseRoot] Caso 2 (a+bi): realPart=" + realPart + ", imagPart=" + imagPart);
             } 
             // Caso 3: Formato "a - b*I"
             else if (exprStr.contains("-") && exprStr.contains("*I")) {
@@ -238,10 +217,8 @@ public class PolynomialSolver {
                 if (lastMinus > 0) {
                     realPart = Double.parseDouble(exprStr.substring(0, lastMinus).trim());
                     imagPart = -Double.parseDouble(exprStr.substring(lastMinus + 1).trim().replace("*I", ""));
-                    System.out.println("    [DEBUG parseRoot] Caso 3 (a-bi): realPart=" + realPart + ", imagPart=" + imagPart);
                 } else {
                     imagPart = -Double.parseDouble(exprStr.substring(1).trim().replace("*I", ""));
-                    System.out.println("    [DEBUG parseRoot] Caso 3b (-bi): imagPart=" + imagPart);
                 }
             } 
             // Caso 4: Solo imaginario: "I", "2*I", etc
@@ -254,10 +231,8 @@ public class PolynomialSolver {
                 } else {
                     imagPart = Double.parseDouble(imgStr);
                 }
-                System.out.println("    [DEBUG parseRoot] Caso 4 (solo imaginario): imagPart=" + imagPart);
             }
             
-            System.out.println("    [DEBUG parseRoot] Resultado: " + realPart + " + " + imagPart + "i");
             return new Root(realPart, imagPart, 1);
             
         } catch (Exception e) {

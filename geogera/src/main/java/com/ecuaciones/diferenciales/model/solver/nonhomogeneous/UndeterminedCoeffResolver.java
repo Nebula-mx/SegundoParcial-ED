@@ -219,6 +219,7 @@ public class UndeterminedCoeffResolver {
             vectorB[i] = getRobustExtractedCoeff(gX, baseTerm_i);
         }
 
+        
         // 4. Resolver el sistema lineal
         List<List<Double>> listA = new ArrayList<>();
         for (double[] row : matrixA) {
