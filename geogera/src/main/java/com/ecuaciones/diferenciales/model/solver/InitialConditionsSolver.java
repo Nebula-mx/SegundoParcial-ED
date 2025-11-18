@@ -558,13 +558,19 @@ public class InitialConditionsSolver {
         String solution = generalSolution;
 
         try {
-            // --- Estrategia Principal: Usar Symja con sustitución múltiple segura ---
-            solution = SymjaEngine.substituteMultipleConstants(solution, constants);
+            // --- Estrategia Principal: Usar fallback directo (más seguro) ---
+            solution = applyConstantsSimpleFallback(constants);
             
         } catch (Exception e) {
-            // Si Symja falla completamente, usar fallback
-            System.err.println("[InitialConditionsSolver] Symja falló, usando fallback: " + e.getMessage());
-            solution = applyConstantsSimpleFallback(constants);
+            // Si fallback falla, intentar Symja
+            System.err.println("[InitialConditionsSolver] Fallback falló, intentando Symja: " + e.getMessage());
+            try {
+                solution = SymjaEngine.substituteMultipleConstants(solution, constants);
+            } catch (Exception ex) {
+                System.err.println("[InitialConditionsSolver] Symja también falló: " + ex.getMessage());
+                // Retornar solución sin aplicar constantes
+                return solution;
+            }
         }
         
         // --- Limpieza y formateo final ---
