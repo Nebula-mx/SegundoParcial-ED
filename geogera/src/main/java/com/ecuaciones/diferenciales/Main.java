@@ -520,10 +520,20 @@ public class Main {
         EcuationParser parser = new EcuationParser();
         
         try {
-            // Validar
+            // Validar ecuación
             if (ecuacion == null || ecuacion.trim().isEmpty()) {
                 resultado.put("status", "ERROR");
                 resultado.put("message", "Ecuación vacía");
+                resultado.put("code", 400);
+                return resultado;
+            }
+            
+            // Validar que la ecuación esté bien formada (no esté incompleta)
+            ecuacion = ecuacion.trim();
+            if (ecuacion.endsWith("=") || ecuacion.endsWith("+") || ecuacion.endsWith("-") || 
+                ecuacion.endsWith("*") || ecuacion.endsWith("/")) {
+                resultado.put("status", "ERROR");
+                resultado.put("message", "Ecuación malformada: termina con operador incompleto");
                 resultado.put("code", 400);
                 return resultado;
             }
@@ -534,6 +544,33 @@ public class Main {
                 resultado.put("message", "No es una ecuación diferencial válida");
                 resultado.put("code", 400);
                 return resultado;
+            }
+            
+            // Validar método
+            if (metodo != null && !metodo.isEmpty()) {
+                String metodoUpperCase = metodo.toUpperCase();
+                if (!"UC".equals(metodoUpperCase) && !"VP".equals(metodoUpperCase) && !"AUTO".equals(metodoUpperCase)) {
+                    resultado.put("status", "ERROR");
+                    resultado.put("message", "Método inválido. Opciones: 'UC', 'VP' o 'AUTO'");
+                    resultado.put("code", 400);
+                    return resultado;
+                }
+                // Normalizar método
+                metodo = metodoUpperCase;
+            } else {
+                metodo = "AUTO";
+            }
+            
+            // Validar formato de condiciones iniciales
+            if (condicionesIniciales != null && !condicionesIniciales.isEmpty()) {
+                for (String ci : condicionesIniciales) {
+                    if (!esFormatoCondicionInicialValido(ci)) {
+                        resultado.put("status", "ERROR");
+                        resultado.put("message", "Formato de CI inválido: '" + ci + "'. Usa: y(x)=valor, y'(x)=valor, y''(x)=valor, etc.");
+                        resultado.put("code", 400);
+                        return resultado;
+                    }
+                }
             }
             
             // Parsear
@@ -668,7 +705,18 @@ public class Main {
             resultado.put("solutionLatex", toLatex(finalSolution));
             
             // APLICAR CONDICIONES INICIALES SI LAS HAY
-            if (!condicionesIniciales.isEmpty()) {
+            if (condicionesIniciales != null && !condicionesIniciales.isEmpty()) {
+                // Validar que número de CI = orden de EDO
+                if (condicionesIniciales.size() != order) {
+                    resultado.put("status", "ERROR");
+                    resultado.put("message", 
+                        "Se esperaban " + order + " condición(es) inicial(es) pero se proporcionaron " + 
+                        condicionesIniciales.size());
+                    resultado.put("code", 400);
+                    resultado.put("executionTimeMs", System.currentTimeMillis() - startTime);
+                    return resultado;
+                }
+                
                 try {
                     // Preparar la solución completa (y_h + y_p) para pasar a InitialConditionsSolver
                     String generalSolutionString = finalSolution.replace("y(x) = ", "").trim();
@@ -677,7 +725,7 @@ public class Main {
                     List<InitialConditionsSolver.InitialCondition> parsedConditions = 
                         InitialConditionsSolver.parseConditions(condicionesIniciales);
                     
-                    if (!parsedConditions.isEmpty()) {
+                    if (!parsedConditions.isEmpty() && parsedConditions.size() == order) {
                         Map<String, Double> solvedConstants = ciSolver.solveInitialConditions(parsedConditions);
                         
                         // Agregar constantes al resultado
@@ -697,6 +745,8 @@ public class Main {
                         resultado.put("solutionLatex", toLatex(finalSolution));
                         resultado.put("initialConditions", condicionesIniciales);
                         resultado.put("withInitialConditions", true);
+                    } else {
+                        resultado.put("initialConditionsWarning", "No se pudieron parsear correctamente todas las CI.");
                     }
                 } catch (Exception e) {
                     // Si falla, mantener la solución general
@@ -764,6 +814,21 @@ public class Main {
         latex = latex.replace("sin(", "\\sin(");
         latex = latex.replace("cos(", "\\cos(");
         return latex;
+    }
+    
+    /**
+     * Valida el formato de una condición inicial
+     * Formatos válidos: y(0)=1, y'(0)=2, y''(0)=3, etc.
+     */
+    private static boolean esFormatoCondicionInicialValido(String ci) {
+        if (ci == null || ci.trim().isEmpty()) {
+            return false;
+        }
+        
+        // Patrón: y (con cero o más ') ( número ) = número
+        // Ejemplo: y(0)=1, y'(1)=-2, y''(0.5)=3, etc.
+        String pattern = "^\\s*y'{0,}\\s*\\(\\s*[+\\-]?\\d*\\.?\\d+\\s*\\)\\s*=\\s*[+\\-]?\\d*\\.?\\d+\\s*$";
+        return ci.matches(pattern);
     }
     
     /**
