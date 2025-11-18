@@ -545,35 +545,37 @@ public class InitialConditionsSolver {
     }
 
     /**
-     * Aplica las constantes resueltas a la solución general usando SymjaEngine
+     * Aplica las constantes resueltas a la solución general usando Symja
      * 
      * De: "C1*e^x + C2*cos(x)"
      * Con {C1=1, C2=2}
      * A: "e^x + 2*cos(x)"
      * 
-     * NOTA: Limpia y formatea la salida de Symja para mejor presentación
+     * MEJORADO (v5): Usa SymjaEngine.substituteMultipleConstants() 
+     * que realiza TODAS las sustituciones en UN SOLO comando Symja
      */
     public String applyConstants(Map<String, Double> constants) {
         String solution = generalSolution;
 
-        // Reemplazar cada constante por su valor usando SymjaEngine
-        for (Map.Entry<String, Double> entry : constants.entrySet()) {
-            String constName = entry.getKey();
-            double value = entry.getValue();
+        try {
+            // --- Estrategia Principal: Usar Symja con sustitución múltiple segura ---
+            solution = SymjaEngine.substituteMultipleConstants(solution, constants);
             
-            // Redondear valores muy cercanos a enteros
-            double roundedValue = Math.round(value * 1e10) / 1e10;  // Redondear a 10 decimales
-            
-            // Usar SymjaEngine para sustitución y simplificación
-            solution = SymjaEngine.applyConstantSubstitution(solution, constName, roundedValue);
+        } catch (Exception e) {
+            // Si Symja falla completamente, usar fallback
+            System.err.println("[InitialConditionsSolver] Symja falló, usando fallback: " + e.getMessage());
+            solution = applyConstantsSimpleFallback(constants);
         }
-
-        // Simplificar la expresión final usando SymjaEngine
-        solution = SymjaEngine.symbolicSimplify(solution);
         
-        // --- Limpieza de formato ---
-        // 1. Convertir E^ a e^ (notación estándar)
-        solution = solution.replaceAll("(?i)E\\^", "e^");
+        // --- Limpieza y formateo final ---
+        
+        // 1. Convertir E^ a e^ (notación estándar, pero preservar E^(...) )
+        // Symja usa E^x para exponenciales, convertir a e^(x)
+        solution = solution.replaceAll("(?i)E\\^\\(([^)]*)\\)", "e^($1)");
+        solution = solution.replaceAll("(?i)E\\^([a-z])", "e^($1)");
+        // Convertir 1/E^x a e^(-x) para mejor legibilidad
+        solution = solution.replaceAll("1/E\\^\\(([^)]*)\\)", "e^(-($1))");
+        solution = solution.replaceAll("(?i)1/E\\^([a-z])", "e^(-$1)");
         
         // 2. Convertir valores decimales muy cercanos a enteros
         solution = cleanNearIntegerValues(solution);
@@ -586,11 +588,74 @@ public class InitialConditionsSolver {
         solution = solution.replaceAll("(?i)\\bCos\\b", "cos");
         solution = solution.replaceAll("(?i)\\bTan\\b", "tan");
         
-        // 4. Expandir notación exponencial si es necesario
+        // 4. Expandir notación exponencial si es que hay
         solution = solution.replaceAll("(?i)Exp\\[", "e^(");
         solution = solution.replaceAll("\\]", ")");
+        
+        // 5. Limpiar paréntesis redundantes
+        solution = cleanRedundantParentheses(solution);
 
         return solution;
+    }
+    
+    /**
+     * Fallback: Sustitución simple sin Symja
+     * Se usa cuando Symja falla o retorna algo inválido
+     */
+    private String applyConstantsSimpleFallback(Map<String, Double> constants) {
+        String solution = generalSolution;
+        
+        for (Map.Entry<String, Double> entry : constants.entrySet()) {
+            String constName = entry.getKey();
+            double value = entry.getValue();
+            
+            // Redondear valores muy cercanos a enteros
+            double roundedValue = Math.round(value * 1e10) / 1e10;
+            
+            // Formato del valor numérico
+            String formattedValue = formatNumericValue(roundedValue);
+            
+            // Buscar C# como palabra completa
+            String regex = "\\b" + Pattern.quote(constName) + "\\b";
+            
+            if (roundedValue < 0) {
+                // Si es negativo, envolver en paréntesis
+                solution = solution.replaceAll(regex, "(" + formattedValue + ")");
+            } else {
+                solution = solution.replaceAll(regex, formattedValue);
+            }
+        }
+        
+        return solution;
+    }
+    
+    /**
+     * Formatea un valor numérico de manera legible
+     */
+    private String formatNumericValue(double value) {
+        // Redondear a entero si está muy cerca
+        if (Math.abs(value - Math.round(value)) < 1e-10) {
+            return String.valueOf((long) Math.round(value));
+        }
+        
+        // Para decimales, usar máximo 6 decimales y remover ceros finales
+        String formatted = String.format(Locale.US, "%.6f", value);
+        formatted = formatted.replaceAll("0+$", "").replaceAll("\\.$", "");
+        return formatted;
+    }
+    
+    /**
+     * Elimina paréntesis redundantes alrededor de números enteros
+     * Por ejemplo: (3)*sin(x) → 3*sin(x) o sin((x)) → sin(x)
+     */
+    private String cleanRedundantParentheses(String expr) {
+        // Patrón 1: (número_entero) → número_entero (excepto negativo)
+        expr = expr.replaceAll("\\((\\d+)\\)", "$1");
+        
+        // Patrón 2: (número_decimal) cuando está entre operadores
+        expr = expr.replaceAll("\\((\\d+\\.\\d+)\\)([+\\-*/)\\]]|$)", "$1$2");
+        
+        return expr;
     }
     
     /**

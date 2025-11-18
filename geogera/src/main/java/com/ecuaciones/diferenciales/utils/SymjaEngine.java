@@ -240,9 +240,55 @@ public class SymjaEngine {
     }
     
     /**
-     * Sustituye constantes en una expresión y simplifica.
-     * Por ejemplo: applyConstantSubstitution("C1*e^x + C2*e^(2*x)", "C1", 3.0)
-     * Resultado: "3.0*e^x + C2*e^(2*x)" simplificado
+     * Sustituye MÚLTIPLES constantes en una expresión de forma segura.
+     * 
+     * Estrategia MEJORADA (v2):
+     * - Construir UN SOLO comando Symja con TODAS las sustituciones
+     * - Evita problemas de case-sensitivity (C1 → c1 → C1)
+     * - Aplica Simplify al final para optimizar
+     * 
+     * Ejemplo:
+     *   Expression: "C1*cos(x) + C2*sin(x)"
+     *   Constants: {C1=2, C2=-1}
+     *   Comando: Simplify[(C1*Cos[x] + C2*Sin[x]) /. C1 -> 2 /. C2 -> -1]
+     *   Result: "2*Cos(x)-Sin(x)"
+     * 
+     * @param expression Expresión con constantes (ej: "C1*e^x + C2*cos(x)")
+     * @param constants Mapa de constantes y valores (ej: {C1=1, C2=2})
+     * @return Expresión con constantes sustituidas y simplificada
+     */
+    public static String substituteMultipleConstants(String expression, java.util.Map<String, Double> constants) {
+        try {
+            String symjaSyntax = convertToSymjaSyntax(expression);
+            
+            // Construir el comando con TODAS las sustituciones en una sola llamada
+            StringBuilder command = new StringBuilder("Simplify[(").append(symjaSyntax).append(")");
+            
+            for (java.util.Map.Entry<String, Double> entry : constants.entrySet()) {
+                String constName = entry.getKey();
+                double value = entry.getValue();
+                
+                // Redondear valores muy cercanos a enteros
+                double roundedValue = Math.round(value * 1e10) / 1e10;
+                
+                command.append(" /. ").append(constName).append(" -> ").append(roundedValue);
+            }
+            
+            command.append("]");
+            
+            // Ejecutar el comando completo
+            IExpr result = EVALUATOR.eval(command.toString());
+            return result.toString();
+            
+        } catch (Exception e) {
+            System.err.println("[SymjaEngine] Error en substitución múltiple: " + e.getMessage());
+            return expression;
+        }
+    }
+
+    /**
+     * Sustituye una constante en una expresión de forma segura.
+     * NOTA: Para múltiples constantes, usar substituteMultipleConstants()
      */
     public static String applyConstantSubstitution(String expression, String constant, double value) {
         String symjaSyntax = convertToSymjaSyntax(expression);

@@ -449,4 +449,212 @@ public class EquationSolverService {
             return error;
         }
     }
+    
+    /**
+     * NUEVO: Resuelve directamente desde una instancia ExpressionData
+     * 
+     * Útil cuando ya tienes parsed la ecuación y solo necesitas resolver
+     * 
+     * @param data ExpressionData ya parseada
+     * @param metodo "UC", "VP" o "AUTO"
+     * @param condicionesIniciales Lista de condiciones iniciales
+     * @return JSON con la solución completa
+     * 
+     * USO:
+     *   ExpressionData data = parser.parse("y'' - 5*y' + 6*y = 0");
+     *   String json = solverService.solveFromExpressionData(data, "AUTO", Arrays.asList("y(0)=1"));
+     */
+    public String solveFromExpressionData(ExpressionData data, String metodo, List<String> condicionesIniciales) {
+        Map<String, Object> resultado = new HashMap<>();
+        
+        try {
+            if (data == null) {
+                resultado.put("status", "ERROR");
+                resultado.put("message", "ExpressionData no puede ser nulo");
+                resultado.put("code", 400);
+                return toJson(resultado);
+            }
+            
+            Double[] coeffsArray = data.getCoefficients();
+            int order = data.getOrder();
+            
+            if (coeffsArray == null || coeffsArray.length == 0 || order <= 0) {
+                resultado.put("status", "ERROR");
+                resultado.put("message", "No se pudo extraer el polinomio característico");
+                resultado.put("code", 400);
+                return toJson(resultado);
+            }
+            
+            // Información de la ecuación
+            Map<String, Object> ecuacionInfo = new HashMap<>();
+            ecuacionInfo.put("order", order);
+            ecuacionInfo.put("coefficients", Arrays.asList(coeffsArray));
+            ecuacionInfo.put("isHomogeneous", data.getIsHomogeneous());
+            
+            if (!data.getIsHomogeneous()) {
+                ecuacionInfo.put("forcingTerm", data.getIndependentTerm().get("g(x)"));
+            }
+            
+            resultado.put("equation", ecuacionInfo);
+            
+            // Resolver las raíces
+            List<Double> coeffs = Arrays.asList(coeffsArray);
+            List<Root> finalRoots = PolynomialSolver.solve(coeffs);
+            
+            // Raíces formateadas
+            List<Map<String, Object>> rootsInfo = new ArrayList<>();
+            for (int i = 0; i < finalRoots.size(); i++) {
+                Root r = finalRoots.get(i);
+                Map<String, Object> rootMap = new HashMap<>();
+                rootMap.put("index", i + 1);
+                rootMap.put("real", r.getReal());
+                rootMap.put("imaginary", r.getImaginary());
+                rootMap.put("display", r.toString());
+                rootsInfo.add(rootMap);
+            }
+            resultado.put("roots", rootsInfo);
+            
+            // Solución homogénea
+            HomogeneousSolver hSolver = new HomogeneousSolver();
+            String solution_h = hSolver.generateHomogeneousSolution(finalRoots);
+            
+            Map<String, Object> solutionInfo = new HashMap<>();
+            solutionInfo.put("homogeneous", solution_h);
+            solutionInfo.put("homogeneousLatex", latexFormat(solution_h));
+            
+            // Solución particular (si no es homogénea)
+            String solution_p = null;
+            String method_used = metodo;
+            
+            if (!data.getIsHomogeneous()) {
+                String g_x = data.getIndependentTerm().get("g(x)");
+                
+                String metodoActual = metodo;
+                if ("AUTO".equals(metodo)) {
+                    metodoActual = "UC";
+                }
+                
+                boolean metodoPrincipalFallo = false;
+                
+                // Intentar UC
+                if ("UC".equals(metodoActual)) {
+                    try {
+                        UndeterminedCoeff ucSolver = new UndeterminedCoeff(finalRoots);
+                        String ypForm = ucSolver.getParticularSolutionForm(g_x);
+                        
+                        UndeterminedCoeffResolver ucResolver = new UndeterminedCoeffResolver(data, ucSolver);
+                        Map<String, Double> solvedCoeffs = ucResolver.resolveCoefficients();
+                        
+                        solution_p = ucSolver.generateParticularSolution(ypForm, solvedCoeffs);
+                        method_used = "UC";
+                        
+                    } catch (ArithmeticException e) {
+                        metodoPrincipalFallo = true;
+                    } catch (Exception e) {
+                        metodoPrincipalFallo = true;
+                    }
+                }
+                
+                // Fallback a VP
+                if (metodoPrincipalFallo || "VP".equals(metodoActual)) {
+                    if (order >= 2) {
+                        try {
+                            WronskianCalculator wc = new WronskianCalculator(finalRoots);
+                            List<String> yFunctions = wc.generateFundamentalSet();
+                            double leadingCoeff = coeffsArray[0];
+                            
+                            VariationOfParametersSolverV2 vpSolver = 
+                                new VariationOfParametersSolverV2(yFunctions, g_x, leadingCoeff, order, wc);
+                            
+                            solution_p = vpSolver.getYpFormula();
+                            method_used = "VP";
+                        } catch (Exception e) {
+                            solution_p = null;
+                        }
+                    }
+                }
+                
+                if (solution_p != null && !solution_p.startsWith("ERROR")) {
+                    String cleanedYp = solution_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
+                    solutionInfo.put("particular", cleanedYp);
+                    solutionInfo.put("particularLatex", latexFormat(cleanedYp));
+                }
+                
+                solutionInfo.put("method", method_used);
+            }
+            
+            // Solución final
+            String finalSolution;
+            if (!data.getIsHomogeneous() && solution_p != null && !solution_p.startsWith("ERROR")) {
+                String cleanedYp = solution_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
+                finalSolution = "y(x) = (" + solution_h + ") + (" + cleanedYp + ")";
+            } else {
+                finalSolution = "y(x) = " + solution_h;
+            }
+            
+            solutionInfo.put("final", finalSolution);
+            solutionInfo.put("finalLatex", latexFormat(finalSolution));
+            resultado.put("solution", solutionInfo);
+            
+            // APLICAR CONDICIONES INICIALES SI LAS HAY
+            if (condicionesIniciales != null && !condicionesIniciales.isEmpty()) {
+                if (condicionesIniciales.size() != order) {
+                    resultado.put("warning", 
+                        "Se esperaban " + order + " condición(es) inicial(es) pero se proporcionaron " + 
+                        condicionesIniciales.size());
+                } else {
+                    try {
+                        String generalSolutionString = finalSolution.replace("y(x) = ", "").trim();
+                        InitialConditionsSolver ciSolver = new InitialConditionsSolver(generalSolutionString, order);
+                        List<InitialConditionsSolver.InitialCondition> parsedConditions = 
+                            InitialConditionsSolver.parseConditions(condicionesIniciales);
+                        
+                        if (!parsedConditions.isEmpty() && parsedConditions.size() == order) {
+                            Map<String, Double> solvedConstants = ciSolver.solveInitialConditions(parsedConditions);
+                            
+                            Map<String, Object> constantsMap = new HashMap<>();
+                            for (Map.Entry<String, Double> entry : solvedConstants.entrySet()) {
+                                constantsMap.put(entry.getKey(), entry.getValue());
+                            }
+                            resultado.put("constants", constantsMap);
+                            
+                            String particularSolution = ciSolver.applyConstants(solvedConstants);
+                            
+                            solutionInfo.put("final", "y(x) = " + particularSolution);
+                            solutionInfo.put("finalLatex", latexFormat("y(x) = " + particularSolution));
+                            resultado.put("withInitialConditions", true);
+                        }
+                    } catch (Exception e) {
+                        resultado.put("initialConditionsWarning", e.getMessage());
+                    }
+                }
+            }
+            
+            resultado.put("status", "SUCCESS");
+            resultado.put("code", 200);
+            
+        } catch (Exception e) {
+            resultado.put("status", "ERROR");
+            resultado.put("message", "Error: " + e.getMessage());
+            resultado.put("code", 500);
+        }
+        
+        return toJson(resultado);
+    }
+    
+    /**
+     * Versión del método anterior que retorna Map en lugar de JSON string
+     */
+    public Map<String, Object> solveFromExpressionDataAsMap(ExpressionData data, String metodo, List<String> condicionesIniciales) {
+        try {
+            String jsonResult = solveFromExpressionData(data, metodo, condicionesIniciales);
+            return objectMapper.readValue(jsonResult, Map.class);
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "ERROR");
+            error.put("message", "Error al convertir resultado: " + e.getMessage());
+            error.put("code", 500);
+            return error;
+        }
+    }
 }
