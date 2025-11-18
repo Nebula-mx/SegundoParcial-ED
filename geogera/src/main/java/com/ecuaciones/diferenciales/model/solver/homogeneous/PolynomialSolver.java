@@ -186,49 +186,61 @@ public class PolynomialSolver {
     /**
      * Calcula la multiplicidad de una raíz checando cuántas derivadas anula
      * Si p(r0)=0, p'(r0)=0, p''(r0)=0 pero p'''(r0)≠0, entonces multiplicidad=3
+     * Ahora soporta raíces complejas: evaluando como z = a + bi
      */
     private static int calculateMultiplicityViaDerivatives(String polynomial, Root root, ExprEvaluator evaluator, int maxDegree) {
         try {
             double r0Real = root.getReal();
             double r0Imag = root.getImaginary();
             
-            // Para raíces reales
+            // Construir z = a + bi como expresión compleja
+            String zExpr;
             if (Math.abs(r0Imag) < TOLERANCE) {
-                String r0Str = String.valueOf(r0Real);
-                int multiplicity = 0;  // Empieza en 0, se incrementa si anula cada derivada
+                // Raíz real simple
+                zExpr = String.valueOf(r0Real);
+            } else {
+                // Raíz compleja: z = a + bi (Symja usa I para la unidad imaginaria)
+                // Formato: (a + b*I) con paréntesis para claridad
+                if (r0Real == 0) {
+                    zExpr = String.format("(%s*I)", r0Imag);
+                } else if (r0Imag > 0) {
+                    zExpr = String.format("(%s+%s*I)", r0Real, r0Imag);
+                } else {
+                    zExpr = String.format("(%s%s*I)", r0Real, r0Imag);  // r0Imag ya incluye el signo
+                }
+            }
+            
+            int multiplicity = 0;  // Empieza en 0, se incrementa si anula cada derivada
+            String currentPoly = polynomial;
+            
+            // Evaluar p, p', p'', p''', etc. en z
+            for (int deriv = 0; deriv <= maxDegree; deriv++) {
+                // Evaluar derivada en z: N[Abs[poly /. r -> z]]
+                String evalCmd = "N[Abs[" + currentPoly + " /. r -> " + zExpr + "]]";
+                IExpr evalResult = evaluator.eval(evalCmd);
                 
-                // Evaluar p, p', p'', p''', etc. en r0
-                String currentPoly = polynomial;
-                for (int deriv = 0; deriv <= maxDegree; deriv++) {
-                    // Evaluar derivada en r0
-                    String evalCmd = "N[" + currentPoly + " /. r -> " + r0Str + "]";
-                    IExpr evalResult = evaluator.eval(evalCmd);
-                    
-                    double value = 0.0;
-                    try {
-                        value = Math.abs(evalResult.evalDouble());
-                    } catch (Exception e) {
-                        value = 0.0;
-                    }
-                    
-                    // Si evaluación es ~0, la raíz anula esta derivada
-                    if (value < TOLERANCE) {
-                        multiplicity++;
-                        // Calcular siguiente derivada solo si hay más para evaluar
-                        if (deriv < maxDegree) {
-                            currentPoly = "D[" + currentPoly + ", r]";
-                        }
-                    } else {
-                        // Encontramos la multiplicidad
-                        break;
-                    }
+                double value = 0.0;
+                try {
+                    value = evalResult.evalDouble();
+                } catch (Exception e) {
+                    // Si no se puede evaluar numéricamente, asumir que no es cero
+                    value = Double.MAX_VALUE;
                 }
                 
-                return multiplicity;
-            } else {
-                // Para raíces complejas, por ahora retornar 1
-                return 1;
+                // Si evaluación es ~0, la raíz anula esta derivada
+                if (value < TOLERANCE) {
+                    multiplicity++;
+                    // Calcular siguiente derivada solo si hay más para evaluar
+                    if (deriv < maxDegree) {
+                        currentPoly = "D[" + currentPoly + ", r]";
+                    }
+                } else {
+                    // Encontramos la multiplicidad
+                    break;
+                }
             }
+            
+            return multiplicity;
         } catch (Exception e) {
             return 1;
         }
