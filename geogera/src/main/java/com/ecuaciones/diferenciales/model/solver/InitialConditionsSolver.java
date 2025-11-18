@@ -157,6 +157,14 @@ public class InitialConditionsSolver {
     /**
      * Resuelve el sistema de condiciones iniciales usando Symja para todos los cálculos
      * 
+     * IMPORTANTE: Si la solución general contiene un término constante (solución particular),
+     * este se resta de las condiciones iniciales antes de resolver.
+     * 
+     * Ejemplo: y(x) = C1*e^(-2*x) + 2 con y(0)=1
+     *  -> Funciones base: [e^(-2*x)]
+     *  -> Término constante: +2
+     *  -> Sistema ajustado: C1*e^(0) = 1 - 2 = -1 → C1 = -1
+     * 
      * @param conditions Lista de condiciones iniciales parseadas
      * @return Mapa {C1=val1, C2=val2, ..., Cn=valn}
      */
@@ -167,12 +175,14 @@ public class InitialConditionsSolver {
             );
         }
 
-        // --- PASO 1: Extraer funciones base de la solución general ---
+        // --- PASO 1: Extraer funciones base y término constante de la solución general ---
         List<String> baseFunctions = extractBaseFunctions();
+        double constantTerm = extractConstantTerm();  // Nuevo método
         
         if (baseFunctions.size() != order) {
             throw new IllegalArgumentException(
-                "No se pudieron extraer " + order + " funciones base de la solución general."
+                "No se pudieron extraer " + order + " funciones base de la solución general. " +
+                "Se extrajeron " + baseFunctions.size() + "."
             );
         }
 
@@ -201,10 +211,19 @@ public class InitialConditionsSolver {
             matrixA.add(row);
         }
 
-        // --- PASO 3: Construir vector b (valores de las CI) ---
+        // --- PASO 3: Construir vector b (valores de las CI ajustados) ---
         List<Double> vectorB = new ArrayList<>();
         for (int i = 0; i < order; i++) {
-            vectorB.add(conditions.get(i).value);
+            InitialCondition ic = conditions.get(i);
+            double adjustedValue = ic.value;
+            
+            // Si la derivada es 0 (función sin derivar) y hay término constante,
+            // restamos el término constante de la CI
+            if (ic.derivativeOrder == 0 && Math.abs(constantTerm) > 1e-12) {
+                adjustedValue = ic.value - constantTerm;
+            }
+            
+            vectorB.add(adjustedValue);
         }
 
         // --- PASO 4: Resolver el sistema A * C = b ---
@@ -228,25 +247,184 @@ public class InitialConditionsSolver {
 
     /**
      * Extrae las funciones base de la solución general.
+     * Maneja correctamente paréntesis múltiples y términos con constantes.
      * 
-     * Soporta múltiples formatos:
-     * - "C1*cos(2x) + C2*sin(2x)"
-     * - "C1 + C2*x + C3*e^x"
-     * - "C1*e^x + C2*e^(2x)"
-     * - "(C1+C2*x)*e^x"  (raíz doble)
+     * ESTRATEGIA MEJORADA (v2):
+     * 1. Elimina TODOS los paréntesis redundantes (incluso anidados múltiples)
+     * 2. Divide por + y - respetando paréntesis  
+     * 3. Extrae funciones con C# y constantes por separado
+     * 
+     * IMPORTANTE: Para ecuaciones no-homogéneas con y_p constante:
+     * - NO agrega el término constante como función base
+     * - El término constante se "absorbe" en las condiciones iniciales
+     * - Ej: y(x) = (C1*e^(-2x)) + (2) → funciones base = [e^(-2*x)]
      */
     private List<String> extractBaseFunctions() {
         List<String> functions = new ArrayList<>();
 
-        // Normalizar: quitar espacios
+        // PASO 1: Normalizar (quitar espacios)
         String normalized = generalSolution.replaceAll("\\s+", "");
+        
+        // PASO 1.5: Limpiar paréntesis innecesarios de CADA término
+        // Primero, dividir en términos para limpiar cada uno por separado
+        List<String> dirtyTerms = splitByAdditionRespectingParentheses(normalized);
+        List<String> cleanTerms = new ArrayList<>();
+        
+        for (String dirtyTerm : dirtyTerms) {
+            String cleanedTerm = stripAllOuterParentheses(dirtyTerm);
+            cleanTerms.add(cleanedTerm);
+        }
+        
+        // Reconstruir expression sin paréntesis innecesarios
+        normalized = String.join("+", cleanTerms);
+        
+        // PASO 2: Asegurar que comience con signo
+        if (!normalized.matches("^[+\\-].*")) {
+            normalized = "+" + normalized;
+        }
+
+        // PASO 3: Re-dividir por + y - (respetando paréntesis internos)
+        List<String> terms = splitByAdditionRespectingParentheses(normalized);
+
+        // PASO 4: Procesar cada término
+        for (String term : terms) {
+            if (term.isEmpty() || term.matches("^[+\\-]$")) continue;
+            
+            // Extraer signo
+            String cleanTerm = term;
+            if (!cleanTerm.matches("^[+\\-].*")) {
+                cleanTerm = "+" + cleanTerm;
+            }
+            
+            // Intentar extraer función con C# (Ej: +C1*cos(3x))
+            Pattern cPattern = Pattern.compile("^([+\\-])(C\\d+)(?:\\*)?(.*)$");
+            Matcher cMatcher = cPattern.matcher(cleanTerm);
+
+            if (cMatcher.matches()) {
+                String sign = cMatcher.group(1);
+                String funcPart = cMatcher.group(3);
+
+                if (funcPart.isEmpty()) {
+                    funcPart = "1";
+                }
+
+                if ("-".equals(sign)) {
+                    funcPart = "-(" + funcPart + ")";
+                }
+
+                functions.add(funcPart);
+            } else {
+                // Intentar extraer término constante puro (Ej: +2 o -3.5)
+                // Si es término constante, lo ignoramos como función base
+                // Se manejará mediante extractConstantTerm()
+            }
+        }
+        
+        return functions;
+    }
+    
+    /**
+     * Elimina TODOS los paréntesis redundantes externos, incluso múltiples niveles.
+     * Ejemplo: (((...))) → ... (repite hasta que no hay más)
+     */
+    private String stripAllOuterParentheses(String expr) {
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            if (expr.startsWith("(") && expr.endsWith(")")) {
+                // Verificar si el paréntesis inicial envuelve todo
+                int depth = 0;
+                boolean wrapsAll = true;
+                for (int i = 0; i < expr.length(); i++) {
+                    if (expr.charAt(i) == '(') depth++;
+                    else if (expr.charAt(i) == ')') depth--;
+                    
+                    if (depth == 0 && i < expr.length() - 1) {
+                        wrapsAll = false;
+                        break;
+                    }
+                }
+                
+                if (wrapsAll) {
+                    expr = expr.substring(1, expr.length() - 1);
+                    changed = true;  // Repetir en caso de más niveles
+                }
+            }
+        }
+        return expr;
+    }
+    
+    /**
+     * Divide una expresión por + y - respetando paréntesis internos.
+     */
+    private List<String> splitByAdditionRespectingParentheses(String expr) {
+        List<String> terms = new ArrayList<>();
+        StringBuilder currentTerm = new StringBuilder();
+        int parenDepth = 0;
+        
+        for (int i = 0; i < expr.length(); i++) {
+            char c = expr.charAt(i);
+            
+            if (c == '(') {
+                parenDepth++;
+                currentTerm.append(c);
+            } else if (c == ')') {
+                parenDepth--;
+                currentTerm.append(c);
+            } else if ((c == '+' || c == '-') && parenDepth == 0) {
+                if (currentTerm.length() > 0) {
+                    terms.add(currentTerm.toString());
+                }
+                currentTerm = new StringBuilder();
+                currentTerm.append(c);
+            } else {
+                currentTerm.append(c);
+            }
+        }
+        
+        if (currentTerm.length() > 0) {
+            terms.add(currentTerm.toString());
+        }
+        
+        return terms;
+    }
+    
+    /**
+     * Extrae el término constante de la solución general (solución particular constante).
+     * Si la solución es "y(x) = (C1*e^(-2x)) + (2)", devuelve 2.0
+     * 
+     * @return Valor del término constante, o 0 si no existe
+     */
+    private double extractConstantTerm() {
+        String normalized = generalSolution.replaceAll("\\s+", "");
+        
+        // Limpiar paréntesis redundantes externos
+        while (normalized.startsWith("(") && normalized.endsWith(")")) {
+            int depth = 0;
+            boolean isWrapped = true;
+            for (int i = 0; i < normalized.length(); i++) {
+                if (normalized.charAt(i) == '(') depth++;
+                else if (normalized.charAt(i) == ')') depth--;
+                
+                if (depth == 0 && i < normalized.length() - 1) {
+                    isWrapped = false;
+                    break;
+                }
+            }
+            
+            if (isWrapped) {
+                normalized = normalized.substring(1, normalized.length() - 1);
+            } else {
+                break;
+            }
+        }
         
         // Asegurar que comience con signo
         if (!normalized.matches("^[+\\-].*")) {
             normalized = "+" + normalized;
         }
 
-        // Dividir por + o - manteniendo el operador, pero SIN dividir dentro de paréntesis
+        // Dividir términos
         List<String> terms = new ArrayList<>();
         StringBuilder currentTerm = new StringBuilder();
         int parenDepth = 0;
@@ -261,7 +439,6 @@ public class InitialConditionsSolver {
                 parenDepth--;
                 currentTerm.append(c);
             } else if ((c == '+' || c == '-') && parenDepth == 0) {
-                // Separador encontrado fuera de paréntesis
                 if (currentTerm.length() > 0) {
                     terms.add(currentTerm.toString());
                 }
@@ -272,75 +449,59 @@ public class InitialConditionsSolver {
             }
         }
         
-        // Agregar el último término
         if (currentTerm.length() > 0) {
             terms.add(currentTerm.toString());
         }
 
+        // Buscar término constante
         for (String term : terms) {
-            if (term.isEmpty() || term.equals("+") || term.equals("-")) continue;
-
-            // Caso especial: (C1+C2*x)*e^x (raíz doble)
-            Pattern doubleRootPattern = Pattern.compile("^([+\\-])\\((.*?)\\)\\*(.*)$");
-            Matcher doubleRootMatcher = doubleRootPattern.matcher(term);
+            if (term.isEmpty() || term.matches("^[+\\-]$")) continue;
             
-            if (doubleRootMatcher.matches()) {
-                // Raíz doble: extraer funciones de dentro del paréntesis
-                String sign = doubleRootMatcher.group(1);
-                String innerPart = doubleRootMatcher.group(2);  // "C1+C2*x" o similar
-                String outerPart = doubleRootMatcher.group(3);   // "e^x" o similar
+            String cleanTerm = term;
+            
+            // Limpiar paréntesis
+            while (cleanTerm.matches("^[+\\-]\\(.*\\)$")) {
+                char sign = cleanTerm.charAt(0);
+                String inner = cleanTerm.substring(1);
                 
-                // Aplicar signo si es negativo
-                if ("-".equals(sign)) {
-                    outerPart = "-(" + outerPart + ")";
-                }
-                
-                // Dividir la parte interna por C1, C2, etc.
-                // Para (C1+C2*x)*e^x queremos: C1*e^x y C2*x*e^x
-                String[] parts = innerPart.split("(?=[+-]C\\d)");
-                for (String part : parts) {
-                    if (part.isEmpty() || part.matches("^[+-]$")) continue;
-                    part = part.replaceAll("^\\+", "");  // Remover + inicial
+                int depth = 0;
+                boolean wrapsAll = true;
+                for (int i = 0; i < inner.length(); i++) {
+                    if (inner.charAt(i) == '(') depth++;
+                    else if (inner.charAt(i) == ')') depth--;
                     
-                    // part es algo como "-C2*x" o "C1"
-                    // Extraer lo que viene después de C# (consumiendo el * opcional)
-                    Pattern cPattern = Pattern.compile("^[+-]?C\\d+(?:\\*)?(.*)$");
-                    Matcher cMatcher = cPattern.matcher(part);
-                    if (cMatcher.matches()) {
-                        String coeff = cMatcher.group(1);  // "x" o vacío
-                        if (coeff.isEmpty()) {
-                            coeff = "1";
-                        }
-                        functions.add(coeff + "*" + outerPart);
+                    if (depth == 0 && i < inner.length() - 1) {
+                        wrapsAll = false;
+                        break;
                     }
                 }
-                continue;
+                
+                if (wrapsAll && inner.startsWith("(")) {
+                    cleanTerm = sign + inner.substring(1, inner.length() - 1);
+                } else {
+                    break;
+                }
             }
-
-            // Caso normal: (+/-)C#*(función) o (+/-)C#
-            Pattern pattern = Pattern.compile("^([+\\-])C(\\d+)(?:\\*)?(.*)$");
-            Matcher matcher = pattern.matcher(term);
-
-            if (matcher.matches()) {
-                String sign = matcher.group(1);
-                String funcPart = matcher.group(3);
-
-                // Si funcPart está vacío, la función es 1 (constante)
-                if (funcPart.isEmpty()) {
-                    funcPart = "1";
-                }
-
-                // Aplicar signo negativo si aplica
+            
+            // Detectar si es un término constante (sin C#)
+            Pattern constPattern = Pattern.compile("^([+\\-])(\\d+(?:\\.\\d+)?)$");
+            Matcher constMatcher = constPattern.matcher(cleanTerm);
+            
+            if (constMatcher.matches()) {
+                String sign = constMatcher.group(1);
+                double value = Double.parseDouble(constMatcher.group(2));
+                
                 if ("-".equals(sign)) {
-                    funcPart = "-(" + funcPart + ")";
+                    value = -value;
                 }
-
-                functions.add(funcPart);
+                
+                return value;
             }
         }
-                return functions;
+        
+        return 0.0;
     }
-
+    
     /**
      * Evalúa una expresión en un punto específico
      * Ejemplo: evaluateAt("cos(2*x)", 0.0) → 1.0
@@ -389,6 +550,8 @@ public class InitialConditionsSolver {
      * De: "C1*e^x + C2*cos(x)"
      * Con {C1=1, C2=2}
      * A: "e^x + 2*cos(x)"
+     * 
+     * NOTA: Limpia y formatea la salida de Symja para mejor presentación
      */
     public String applyConstants(Map<String, Double> constants) {
         String solution = generalSolution;
@@ -398,14 +561,68 @@ public class InitialConditionsSolver {
             String constName = entry.getKey();
             double value = entry.getValue();
             
+            // Redondear valores muy cercanos a enteros
+            double roundedValue = Math.round(value * 1e10) / 1e10;  // Redondear a 10 decimales
+            
             // Usar SymjaEngine para sustitución y simplificación
-            solution = SymjaEngine.applyConstantSubstitution(solution, constName, value);
+            solution = SymjaEngine.applyConstantSubstitution(solution, constName, roundedValue);
         }
 
         // Simplificar la expresión final usando SymjaEngine
         solution = SymjaEngine.symbolicSimplify(solution);
+        
+        // --- Limpieza de formato ---
+        // 1. Convertir E^ a e^ (notación estándar)
+        solution = solution.replaceAll("(?i)E\\^", "e^");
+        
+        // 2. Convertir valores decimales muy cercanos a enteros
+        solution = cleanNearIntegerValues(solution);
+        
+        // 3. Convertir notación de funciones Symja a nuestra notación
+        solution = solution.replaceAll("(?i)Sin\\[", "sin(");
+        solution = solution.replaceAll("(?i)Cos\\[", "cos(");
+        solution = solution.replaceAll("(?i)Tan\\[", "tan(");
+        solution = solution.replaceAll("(?i)\\bSin\\b", "sin");
+        solution = solution.replaceAll("(?i)\\bCos\\b", "cos");
+        solution = solution.replaceAll("(?i)\\bTan\\b", "tan");
+        
+        // 4. Expandir notación exponencial si es necesario
+        solution = solution.replaceAll("(?i)Exp\\[", "e^(");
+        solution = solution.replaceAll("\\]", ")");
 
         return solution;
+    }
+    
+    /**
+     * Convierte decimales muy cercanos a enteros en su representación entera
+     * Ejemplo: 2.9999999999999996 → 3, -0.9999999999999996 → -1
+     */
+    private String cleanNearIntegerValues(String expr) {
+        // Encontrar todos los números decimales
+        Pattern numberPattern = Pattern.compile("(-?\\d+\\.\\d+)");
+        Matcher matcher = numberPattern.matcher(expr);
+        StringBuffer sb = new StringBuffer();
+        
+        while (matcher.find()) {
+            double num = Double.parseDouble(matcher.group(1));
+            double rounded = Math.round(num);
+            
+            // Si el número está muy cercano a su redondeado (dentro de 1e-8)
+            if (Math.abs(num - rounded) < 1e-8) {
+                // Reemplazar por el entero
+                long intValue = Math.round(num);
+                matcher.appendReplacement(sb, String.valueOf(intValue));
+            } else {
+                // Mantener el original pero con menos decimales (máximo 4)
+                String formatted = String.format(Locale.US, "%.4f", num);
+                // Remover ceros al final
+                formatted = formatted.replaceAll("0+$", "").replaceAll("\\.$", "");
+                matcher.appendReplacement(sb, formatted);
+            }
+        }
+        matcher.appendTail(sb);
+        
+        return sb.toString();
     }
 
     // --- GETTERS ---

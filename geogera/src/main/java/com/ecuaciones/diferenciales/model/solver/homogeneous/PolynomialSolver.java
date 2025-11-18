@@ -100,6 +100,7 @@ public class PolynomialSolver {
     
     /**
      * Resuelve un polinomio usando Symja para grados > 2
+     * Calcula multiplicidades checando si raíces anulan derivadas sucesivas
      */
     private static List<Root> solveWithSymja(List<Double> coeffs) {
         List<Root> roots = new ArrayList<>();
@@ -134,13 +135,14 @@ public class PolynomialSolver {
                 return roots;
             }
             
-            // Resolver: Solve[polinomio == 0, r]
+            String polynomial = polyStr.toString();
             ExprEvaluator evaluator = new ExprEvaluator();
-            String solveCmd = "Solve[" + polyStr.toString() + "==0, r]";
             
+            // Resolver: Solve[polinomio == 0, r]
+            String solveCmd = "Solve[" + polynomial + "==0, r]";
             IExpr result = evaluator.eval(solveCmd);
             
-            // Parsear resultados - result es una lista de reglas {r -> valor}
+            // Parsear resultados
             if (result.isList()) {
                 IAST list = (IAST) result;
                 
@@ -161,7 +163,11 @@ public class PolynomialSolver {
                                 // Rule tiene estructura: [0]=Rule head, [1]=variable, [2]=valor
                                 if (ruleAst.size() >= 3) {
                                     IExpr valueExpr = ruleAst.get(2);  // El valor de la raíz
-                                    roots.add(parseSymjaRoot(valueExpr));
+                                    Root root = parseSymjaRoot(valueExpr);
+                                    
+                                    // CRÍTICO: Calcular multiplicidad checando derivadas
+                                    int multiplicity = calculateMultiplicityViaDerivatives(polynomial, root, evaluator, degree);
+                                    roots.add(new Root(root.getReal(), root.getImaginary(), multiplicity));
                                 }
                             }
                         }
@@ -178,63 +184,85 @@ public class PolynomialSolver {
     }
     
     /**
+     * Calcula la multiplicidad de una raíz checando cuántas derivadas anula
+     * Si p(r0)=0, p'(r0)=0, p''(r0)=0 pero p'''(r0)≠0, entonces multiplicidad=3
+     */
+    private static int calculateMultiplicityViaDerivatives(String polynomial, Root root, ExprEvaluator evaluator, int maxDegree) {
+        try {
+            double r0Real = root.getReal();
+            double r0Imag = root.getImaginary();
+            
+            // Para raíces reales
+            if (Math.abs(r0Imag) < TOLERANCE) {
+                String r0Str = String.valueOf(r0Real);
+                int multiplicity = 0;  // Empieza en 0, se incrementa si anula cada derivada
+                
+                // Evaluar p, p', p'', p''', etc. en r0
+                String currentPoly = polynomial;
+                for (int deriv = 0; deriv <= maxDegree; deriv++) {
+                    // Evaluar derivada en r0
+                    String evalCmd = "N[" + currentPoly + " /. r -> " + r0Str + "]";
+                    IExpr evalResult = evaluator.eval(evalCmd);
+                    
+                    double value = 0.0;
+                    try {
+                        value = Math.abs(evalResult.evalDouble());
+                    } catch (Exception e) {
+                        value = 0.0;
+                    }
+                    
+                    // Si evaluación es ~0, la raíz anula esta derivada
+                    if (value < TOLERANCE) {
+                        multiplicity++;
+                        // Calcular siguiente derivada solo si hay más para evaluar
+                        if (deriv < maxDegree) {
+                            currentPoly = "D[" + currentPoly + ", r]";
+                        }
+                    } else {
+                        // Encontramos la multiplicidad
+                        break;
+                    }
+                }
+                
+                return multiplicity;
+            } else {
+                // Para raíces complejas, por ahora retornar 1
+                return 1;
+            }
+        } catch (Exception e) {
+            return 1;
+        }
+    }
+    
+    /**
      * Parsea una raíz desde la expresión Symja
      */
     private static Root parseSymjaRoot(IExpr expr) {
         try {
+            // Usar Symja para obtener numéricamente las partes real e imaginaria
+            ExprEvaluator evaluator = new ExprEvaluator();
             String exprStr = expr.toString().trim();
-            
-            // Si es solo un número real
-            if (!exprStr.contains("I")) {
-                double real = Double.parseDouble(exprStr);
-                return new Root(real, 0.0, 1);
-            }
-            
-            // Si contiene I (unidad imaginaria): a+b*I o a-b*I o I*b o (-I*b)
-            // Ejemplos: "1/2 + I*Sqrt[3]/2", "3 + 4*I", "I*1.0", "(-I*1.0)"
+
+            // Evaluar Re y Im numéricamente (maneja fracciones y Sqrt[] correctamente)
+            IExpr re = evaluator.eval("N[Re[" + exprStr + "]]");
+            IExpr im = evaluator.eval("N[Im[" + exprStr + "]]");
+
             double realPart = 0.0;
             double imagPart = 0.0;
-            
-            // Caso 1: Formato "I*valor" o "(-I*valor)"
-            if (exprStr.startsWith("(") && exprStr.contains("I*")) {
-                // Formato: "(-I*1.0)" o "(I*1.0)"
-                exprStr = exprStr.replaceAll("[()]", "").trim();
-                if (exprStr.startsWith("-I*")) {
-                    imagPart = -Double.parseDouble(exprStr.substring(3).trim());
-                } else if (exprStr.startsWith("I*")) {
-                    imagPart = Double.parseDouble(exprStr.substring(2).trim());
-                }
+
+            try {
+                realPart = re.evalDouble();
+            } catch (Exception ex) {
+                try { realPart = Double.parseDouble(re.toString()); } catch (Exception ex2) { realPart = 0.0; }
             }
-            // Caso 2: Formato "a + b*I"
-            else if (exprStr.contains("+") && exprStr.contains("*I")) {
-                String[] parts = exprStr.split("\\+");
-                realPart = Double.parseDouble(parts[0].trim());
-                imagPart = Double.parseDouble(parts[1].trim().replace("*I", "").trim());
-            } 
-            // Caso 3: Formato "a - b*I"
-            else if (exprStr.contains("-") && exprStr.contains("*I")) {
-                int lastMinus = exprStr.lastIndexOf("-");
-                if (lastMinus > 0) {
-                    realPart = Double.parseDouble(exprStr.substring(0, lastMinus).trim());
-                    imagPart = -Double.parseDouble(exprStr.substring(lastMinus + 1).trim().replace("*I", ""));
-                } else {
-                    imagPart = -Double.parseDouble(exprStr.substring(1).trim().replace("*I", ""));
-                }
-            } 
-            // Caso 4: Solo imaginario: "I", "2*I", etc
-            else if (exprStr.contains("I")) {
-                String imgStr = exprStr.replace("*I", "").replace("I", "").trim();
-                if (imgStr.isEmpty()) {
-                    imagPart = 1.0;
-                } else if (imgStr.equals("-")) {
-                    imagPart = -1.0;
-                } else {
-                    imagPart = Double.parseDouble(imgStr);
-                }
+
+            try {
+                imagPart = im.evalDouble();
+            } catch (Exception ex) {
+                try { imagPart = Double.parseDouble(im.toString()); } catch (Exception ex2) { imagPart = 0.0; }
             }
-            
+
             return new Root(realPart, imagPart, 1);
-            
         } catch (Exception e) {
             System.err.println("Error parseando raíz: " + expr.toString());
             e.printStackTrace();

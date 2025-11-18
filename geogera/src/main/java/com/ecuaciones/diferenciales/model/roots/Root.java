@@ -22,14 +22,14 @@ public class Root {
 
     public Root(double real, double imaginary, int multiplicity) {
         this.real = cleanValue(real);
-        // CRÍTICO: Almacenar SIEMPRE el valor absoluto (>= 0) para la parte imaginaria (beta)
-        this.imaginary = cleanValue(Math.abs(imaginary)); 
+        // Almacenar la parte imaginaria con signo (permitir conjugados distintos)
+        this.imaginary = cleanValue(imaginary);
         this.multiplicity = multiplicity;
     }
 
     // Getters
     public double getReal() { return real; }
-    public double getImaginary() { return imaginary; } // Siempre |beta|
+    public double getImaginary() { return imaginary; }
     public int getMultiplicity() { return multiplicity; }
     public boolean isReal() { return Math.abs(imaginary) < TOLERANCE; }
 
@@ -95,15 +95,17 @@ public class Root {
             
             // 1. Manejar caso Raíz Pura (0 +/- Bi)
             if (Math.abs(real) < TOLERANCE) {
-                // Genera +Bi y -Bi
-                String rootStr1 = imagPart; 
-                String rootStr2 = "-" + imagPart; 
-                rootStr = rootStr1 + ", " + rootStr2; 
+                // Genera +Bi y -Bi usando la magnitud de la parte imaginaria
+                String mag = (Math.abs(imaginary - 1.0) < TOLERANCE) ? "i" : formatValue(Math.abs(imaginary)) + "i";
+                String rootStr1 = mag;
+                String rootStr2 = "-" + mag;
+                rootStr = rootStr1 + ", " + rootStr2;
             } else {
                 // 2. Manejar caso Raíz Compleja General (Alpha +/- Bi)
-                // Genera (Alpha + Bi) y (Alpha - Bi)
-                String rootStr1 = realStr + " + " + imagPart;
-                String rootStr2 = realStr + " - " + imagPart;
+                // Genera (Alpha + Bi) y (Alpha - Bi) usando magnitud para la parte imaginaria
+                String mag = (Math.abs(imaginary - 1.0) < TOLERANCE || Math.abs(imaginary + 1.0) < TOLERANCE) ? "i" : formatValue(Math.abs(imaginary)) + "i";
+                String rootStr1 = realStr + " + " + mag;
+                String rootStr2 = realStr + " - " + mag;
                 rootStr = rootStr1 + ", " + rootStr2;
             }
         }
