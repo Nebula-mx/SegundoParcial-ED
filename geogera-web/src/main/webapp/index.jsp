@@ -52,7 +52,7 @@
         <legend>Selecciona el método que deseas utilizar para resolver la ecuación</legend>
         <form id="resMethod-select">
           <input type="radio" id="autoMethod" name="method" value="AUTO" checked>
-          <label for="autoMethod">Atomático</label>
+          <label for="autoMethod">Automático</label>
 
           <input type="radio" id="method1" name="method" value="UC">
           <label for="method1">Coeficientes Indeterminados</label>

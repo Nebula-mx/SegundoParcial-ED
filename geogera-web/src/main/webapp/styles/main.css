@@ -9,6 +9,7 @@
   --tipBoxesBgColor: #F8FAFC;
   --borderColor: #E5E5E5;
   --globalBorderRadius: clamp(8px, 2vw, 12px);
+  --highlightItemBGColor: #5c5c5c;
 }
 
 /* Tema oscuro: detecta preferencia del sistema y permite forzar con [data-theme="dark"] en <html> */
@@ -23,6 +24,7 @@
     --altBoxesBgColor: #0b0b0b;
     --tipBoxesBgColor: #071223;
     --borderColor: #2b2b2b;
+    --highlightItemBGColor: #314055;
   }
 }
 
@@ -35,6 +37,7 @@
   --altBoxesBgColor: #0b0b0b;
   --tipBoxesBgColor: #071223;
   --borderColor: #2b2b2b;
+  --highlightItemBGColor: #314055;
 }
 
 * {
@@ -43,10 +46,6 @@
   box-sizing: border-box;
   font-family: "Montserrat", sans-serif;
   font-style: normal;
-}
-
-button {
-  cursor: pointer;
 }
 
 #root {
@@ -232,6 +231,13 @@ button {
             cursor: pointer;
             font-size: clamp(0.25rem, 3.5vw, 1rem);
             background: transparent;
+            transition: background-color 0.3s, color 0.3s, box-shadow 0.3s;
+          }
+
+          label:hover {
+            background-color: var(--highlightItemBGColor);
+            color:  var(--altFontColor);
+            box-shadow: 0 0 12px rgba(0, 0, 0, .3);
           }
 
           input[type="radio"]:checked+* {
@@ -293,6 +299,33 @@ button {
 
 .shake-error {
   animation: shake 0.5s ease-in-out;
+}
+
+button {
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.2s, filter 0.2s;
+}
+button:hover {
+  box-shadow: 0 0 5px rgba(0, 0, 0, .1);
+  transform: scale(.99);
+  text-decoration: underline;
+  filter: invert();
+}
+button:active {
+  transform: scale(0.96);
+}
+
+input[type="text"] {
+  transition: box-shadow 0.2s, border 0.2s;
+}
+
+input[type="text"]:hover {
+  box-shadow: 0 0 5px rgba(0, 0, 0, .1);
+  outline: 1px solid var(--fontColor);
+}
+input[type="text"]:focus {
+  box-shadow: 0 0 8px rgba(0, 0, 0, .2);
+  outline: 1px solid var(--fontColor);
 }
 
 @keyframes shake {
