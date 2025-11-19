@@ -38,7 +38,11 @@ public class SymbolicDifferentiator {
                 // Simplificar el resultado
                 IExpr simplified = EVALUATOR.eval(F.Simplify(result));
                 
-                return simplified.toString();
+                // Convertir de vuelta de Symja a nuestro formato
+                String resultStr = simplified.toString();
+                resultStr = SymjaEngine.convertFromSymjaSyntax(resultStr);
+                
+                return resultStr;
             } catch (Exception e1) {
                 // FALLBACK: Usar F.D() como método alternativo
                 IExpr expr = EVALUATOR.parse(symjaExpr);
@@ -52,7 +56,11 @@ public class SymbolicDifferentiator {
                 // Simplificar el resultado
                 IExpr simplified = EVALUATOR.eval(F.Simplify(expr));
                 
-                return simplified.toString();
+                // Convertir de vuelta de Symja a nuestro formato
+                String resultStr = simplified.toString();
+                resultStr = SymjaEngine.convertFromSymjaSyntax(resultStr);
+                
+                return resultStr;
             }
         } catch (Exception e) {
             System.err.println("❌ Error calculando derivada de: " + expression);
@@ -103,7 +111,11 @@ public class SymbolicDifferentiator {
             IExpr expr = EVALUATOR.parse(symjaExpr);
             IExpr simplified = EVALUATOR.eval(F.Simplify(expr));
             
-            return simplified.toString();
+            // Convertir de vuelta de Symja a nuestro formato
+            String result = simplified.toString();
+            result = SymjaEngine.convertFromSymjaSyntax(result);
+            
+            return result;
         } catch (Exception e) {
             System.err.println("❌ Error simplificando: " + expression);
             return expression;
@@ -217,5 +229,14 @@ public class SymbolicDifferentiator {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Extrae el coeficiente de un término en una expresión
+     * Ejemplo: extractCoeff("2*x + 3*x^2", "x") → 2.0
+     * Delega a SymjaEngine para evitar duplicación de lógica
+     */
+    public static double extractCoeff(String expression, String term) {
+        return SymjaEngine.extractCoefficient(expression, term);
     }
 }

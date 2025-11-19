@@ -15,12 +15,13 @@ public class EcuationParser extends ODEParser {
 
     // Patrón simple: Captura el término del coeficiente seguido de la función y su derivada.
     // Grupo 1: Coeficiente con signo (ej: +1, -4.5, -1)
-    // Grupo 2: Función (y''', y'', y', y^(n), y)
+    // Grupo 2: Función (y''', y'', y', y^(n), y^n, y)
     // El \*? permite un asterisco opcional entre el coeficiente y la derivada (ej: -3*y' o -3y')
+    // Soporta: y^(4), y^4, y''', y'', y', y
     private static final Pattern TERM_PATTERN = Pattern.compile(
         "([+-]\\s*\\d*\\.?\\d+\\s*)" + 
         "\\*?\\s*" +
-        "(y'''|y''|y'|y\\^\\(\\d+\\)|y)"
+        "(y'''|y''|y'|y\\^\\(\\d+\\)|y\\^\\d+|y)"
     );
     
     // --- Lógica de normalización ---
@@ -90,6 +91,13 @@ public class EcuationParser extends ODEParser {
             } else if (derivativeStr.matches("y\\^\\((\\d+)\\)")) {
                  // Capturar el orden de la notación y^(n)
                  Pattern p = Pattern.compile("y\\^\\((\\d+)\\)");
+                 Matcher m = p.matcher(derivativeStr);
+                 if (m.find()) {
+                     order = Integer.parseInt(m.group(1));
+                 }
+            } else if (derivativeStr.matches("y\\^\\d+")) {
+                 // Capturar el orden de la notación y^n (sin paréntesis)
+                 Pattern p = Pattern.compile("y\\^(\\d+)");
                  Matcher m = p.matcher(derivativeStr);
                  if (m.find()) {
                      order = Integer.parseInt(m.group(1));

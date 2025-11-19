@@ -142,19 +142,11 @@ public class VariationOfParametersSolverV2 {
                 return null;
             }
 
-            // Convertir salida de Symja a notación matemática más familiar
-            String human = integral;
-            human = human.replaceAll("Sin\\[", "sin(");
-            human = human.replaceAll("Cos\\[", "cos(");
-            human = human.replaceAll("Tan\\[", "tan(");
-            human = human.replaceAll("Sinh\\[", "sinh(");
-            human = human.replaceAll("Cosh\\[", "cosh(");
-            human = human.replaceAll("Exp\\[", "e^(");
-            human = human.replaceAll("Log\\[", "ln(");
-            // Cerrar corchetes ']' -> ')'
-            human = human.replaceAll("\\]", ")");
-
-            // Ajustes menores: Symja puede devolver e^(x) como Exp[x], ahora es e^(x)
+            // 🔥 CRUCIAL: Convertir salida de Symja a notación matemática estándar
+            // Symja usa: E^x, Sin[x], Sinh[x], etc.
+            // Nosotros usamos: e^x, sin(x), sinh(x), etc.
+            String human = SymjaEngine.convertFromSymjaSyntax(integral);
+            
             // Remover espacios innecesarios
             human = human.replaceAll("\\s+", " ").trim();
             return human;
@@ -294,7 +286,7 @@ public class VariationOfParametersSolverV2 {
 
     /**
      * 📄 Retornar solo la fórmula compacta de y_p (sin el prefijo "y_p(x) =")
-     * MEJORADO: Retorna la versión SIMPLIFICADA de y_p
+     * MEJORADO: Retorna la versión SIMPLIFICADA de y_p y la CONVIERTE de Symja syntax
      */
     public String getYpFormula() {
         if (order < 2) {
@@ -327,6 +319,9 @@ public class VariationOfParametersSolverV2 {
             ypSimplified = yp;
         }
         
-        return ypSimplified;
+        // 🔥 CRUCIAL: Convertir la salida de Symja a nuestro formato estándar
+        String ypConverted = SymjaEngine.convertFromSymjaSyntax(ypSimplified);
+        
+        return ypConverted;
     }
 }

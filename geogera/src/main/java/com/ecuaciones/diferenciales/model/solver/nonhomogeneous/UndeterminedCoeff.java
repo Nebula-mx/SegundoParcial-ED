@@ -87,82 +87,89 @@ public class UndeterminedCoeff {
         return new java.util.AbstractMap.SimpleEntry<>(polynomialTerms, currentCoeff);
     }
 
+    /**
+     * Lógica de resonancia simplificada y correcta.
+     * Comprueba si (alpha, beta) de g(x) coincide con una raíz homogénea.
+     */
     private int findDuplicityFactor(double alpha, double beta) {
         int s = 0;
         double absBeta = Math.abs(beta);
+        
         for (Root r : homogeneousRoots) {
             double rAlpha = r.getReal();
-            double rBeta = r.getImaginary();
+            double rBeta = Math.abs(r.getImaginary());  // Comparar magnitudes de beta
             
+            // Comprueba si la raíz (alpha, beta) de g(x) coincide con una raíz homogénea (rAlpha, rBeta)
             if (Math.abs(alpha - rAlpha) < TOLERANCE && Math.abs(absBeta - rBeta) < TOLERANCE) {
+                // s es la multiplicidad de esa raíz
                 s = Math.max(s, r.getMultiplicity());
-            }
-        }
-        // Si no encontró coincidencia exacta, al menos verificar resonancia simple (s=1)
-        // Para el caso cos(bx) con raiz 0±bi, s debería ser 1
-        if (s == 0 && Math.abs(alpha) < TOLERANCE) {
-            for (Root r : homogeneousRoots) {
-                if (Math.abs(r.getReal()) < TOLERANCE && Math.abs(Math.abs(r.getImaginary()) - absBeta) < TOLERANCE) {
-                    s = 1;
-                    break;
-                }
             }
         }
         return s;
     }
 
+    /**
+     * Genera la forma de yp* usando la REGLA MATEMÁTICA CORRECTA para la resonancia.
+     * yp* = x^s * (Polinomio_grado_deg * ...)
+     */
     private Map.Entry<String, Character> getFormForSingleTerm(FunctionAnalyzer.AnalyzedTerm analyzedTerm, char startCoeff) {
         double alpha = analyzedTerm.alpha;
         double beta = analyzedTerm.beta;
-        int deg = analyzedTerm.degree;
+        int deg = analyzedTerm.degree; // Grado original del polinomio en g(x)
         char nextCoeff = startCoeff;
         
+        // 1. OBTENER FACTOR DE RESONANCIA (s)
         int s = findDuplicityFactor(alpha, beta);
-        // Para resonancia, AUMENTAR EL GRADO del polinomio en lugar de multiplicar por x
-        // Esto evita problemas de simplificación en Symja con términos como x*e^(x)
-        int adjustedDeg = deg + s;
-        
+        String xResonanceFactor = (s == 0) ? "" : (s == 1) ? "x" : getXPower(s);
+        String xResonanceSuffix = xResonanceFactor.isEmpty() ? "" : xResonanceFactor + "*";
+
+        // 2. OBTENER FACTOR EXPONENCIAL
         String expFactor = "";
         if (Math.abs(alpha) > TOLERANCE) {
             String alphaStr = formatValue(alpha);
-            // Usar paréntesis para claridad: e^(alpha*x) para evitar ambigüedad
-            expFactor = "e^(" + alphaStr + "*x)";
+            // Usar paréntesis para Symja
+            expFactor = "e^(" + alphaStr + "*x)"; 
         }
-        // Normalizado a * (sin espacios) para SymbolicDifferentiator
         String expFactorSuffix = expFactor.isEmpty() ? "" : "*" + expFactor; 
 
         StringBuilder visualFormSb = new StringBuilder();
 
-        int numPolys = (Math.abs(beta) > TOLERANCE) ? 2 : 1;
-        Map.Entry<List<String>, Character> poly = generateAtomicPolynomials(adjustedDeg, nextCoeff, numPolys);
-        List<String> pTermsPure = poly.getKey(); // [1], [x], [x^2], etc.
+        // 3. GENERAR POLINOMIOS (BASADOS EN 'deg', NO 'adjustedDeg')
+        int numPolys = (Math.abs(beta) > TOLERANCE) ? 2 : 1; // 1 para real/exp, 2 para trig
+        Map.Entry<List<String>, Character> poly = generateAtomicPolynomials(deg, nextCoeff, numPolys);
+        List<String> pTermsPure = poly.getKey(); // [1, x, x^2]
         nextCoeff = poly.getValue();
         
-        int coeffIndexStart = this.solvedCoeffNames.size() - (numPolys * (adjustedDeg + 1));
+        int coeffIndexStart = this.solvedCoeffNames.size() - (numPolys * (deg + 1));
 
         if (Math.abs(beta) > TOLERANCE) { // Caso Trigonométrico
             
             double absBeta = Math.abs(beta);
             String betaStr = formatValue(absBeta);
-            String cosTermCore = "cos(" + betaStr + "x)";
-            String sinTermCore = "sin(" + betaStr + "x)";
+            // CORRECCIÓN de notación para Symja
+            String trigArg = (betaStr.equals("1") || betaStr.isEmpty()) ? "x" : betaStr + "*x"; 
+            
+            String cosTermCore = "cos(" + trigArg + ")";
+            String sinTermCore = "sin(" + trigArg + ")";
             
             String polyA = "";
             String polyB = "";
             
-            for (int i = 0; i <= adjustedDeg; i++) {
+            for (int i = 0; i <= deg; i++) { // <-- BUCLE HASTA 'deg'
                 String pTermPure = pTermsPure.get(i); // x^i
                 String currentXPower = pTermPure.equals("1") ? "" : pTermPure;
+                String xPowerSuffix = currentXPower.isEmpty() ? "" : currentXPower + "*";
                 
-                // --- TÉRMINOS BASE (FILAS) --- (sin x^s adicional)
-                String baseAtomicTermCos = cleanTerm(currentXPower.isEmpty() ? cosTermCore + expFactorSuffix : currentXPower + "*" + cosTermCore + expFactorSuffix);
-                String baseAtomicTermSin = cleanTerm(currentXPower.isEmpty() ? sinTermCore + expFactorSuffix : currentXPower + "*" + sinTermCore + expFactorSuffix);
+                // --- TÉRMINOS BASE (FILAS) --- (SIN resonancia x^s)
+                String baseAtomicTermCos = cleanTerm(xPowerSuffix + cosTermCore + expFactorSuffix);
+                String baseAtomicTermSin = cleanTerm(xPowerSuffix + sinTermCore + expFactorSuffix);
                 this.baseUCTerms.add(baseAtomicTermCos);
                 this.baseUCTerms.add(baseAtomicTermSin);
 
-                // --- TÉRMINOS YP* (COLUMNAS) --- (grado ajustado para resonancia)
-                String ypAtomicTermCos = cleanTerm(currentXPower.isEmpty() ? cosTermCore + expFactorSuffix : currentXPower + "*" + cosTermCore + expFactorSuffix);
-                String ypAtomicTermSin = cleanTerm(currentXPower.isEmpty() ? sinTermCore + expFactorSuffix : currentXPower + "*" + sinTermCore + expFactorSuffix);
+                // --- TÉRMINOS YP* (COLUMNAS) --- (CON resonancia x^s)
+                // Se multiplica el término base por x^s
+                String ypAtomicTermCos = cleanTerm(xResonanceSuffix + baseAtomicTermCos);
+                String ypAtomicTermSin = cleanTerm(xResonanceSuffix + baseAtomicTermSin);
                 this.ypStarTerms.add(ypAtomicTermCos);
                 this.ypStarTerms.add(ypAtomicTermSin);
 
@@ -179,11 +186,12 @@ public class UndeterminedCoeff {
                 if (!currentXPower.isEmpty()) polyB += " * " + currentXPower;
             }
             
-            String polyVisualA = (adjustedDeg > 0) ? "(" + polyA + ")" : polyA;
-            String polyVisualB = (adjustedDeg > 0) ? "(" + polyB + ")" : polyB;
+            String polyVisualA = (deg > 0) ? "(" + polyA + ")" : polyA;
+            String polyVisualB = (deg > 0) ? "(" + polyB + ")" : polyB;
             String combinedCore = "(" + polyVisualA + " * " + cosTermCore + " + " + polyVisualB + " * " + sinTermCore + ")";
 
             visualFormSb.setLength(0);
+            if (!xResonanceFactor.isEmpty()) visualFormSb.append(xResonanceFactor).append(" * ");
             if (!expFactor.isEmpty()) visualFormSb.append(expFactor).append(" * ");
             visualFormSb.append(combinedCore);
 
@@ -192,17 +200,18 @@ public class UndeterminedCoeff {
             StringBuilder pFormVisual = new StringBuilder();
             int currentCoeffIndex = coeffIndexStart; 
 
-            for (int i = 0; i <= adjustedDeg; i++) {
+            for (int i = 0; i <= deg; i++) { // <-- BUCLE HASTA 'deg'
                 String pTermPure = pTermsPure.get(i); // x^i
                 String currentXPower = pTermPure.equals("1") ? "" : pTermPure;
+                String xPowerSuffix = currentXPower.isEmpty() ? "" : currentXPower + "*";
 
-                // --- TÉRMINO BASE (FILA) --- (sin factor x adicional)
-                String baseAtomicTerm = cleanTerm(currentXPower.isEmpty() ? expFactor : currentXPower + expFactorSuffix);
+                // --- TÉRMINO BASE (FILA) --- (SIN resonancia x^s)
+                String baseAtomicTerm = cleanTerm(xPowerSuffix + expFactor);
                 if (baseAtomicTerm.isEmpty()) baseAtomicTerm = "1"; // Caso P(x)=C, e^0x
                 this.baseUCTerms.add(baseAtomicTerm);
 
-                // --- TÉRMINO YP* (COLUMNA) --- (misma forma, grado ajustado)
-                String ypAtomicTerm = cleanTerm(currentXPower.isEmpty() ? expFactor : currentXPower + expFactorSuffix);
+                // --- TÉRMINO YP* (COLUMNA) --- (CON resonancia x^s)
+                String ypAtomicTerm = cleanTerm(xResonanceSuffix + baseAtomicTerm);
                 if (ypAtomicTerm.isEmpty()) ypAtomicTerm = "1";
                 this.ypStarTerms.add(ypAtomicTerm);
 
@@ -214,8 +223,11 @@ public class UndeterminedCoeff {
             }
             
             String polynomialVisual = pFormVisual.toString();
-            if (adjustedDeg > 0) polynomialVisual = "(" + polynomialVisual + ")";
+            if (deg > 0) polynomialVisual = "(" + polynomialVisual + ")";
             
+            // Ensamblaje Visual: x^s * P(x) * e^(ax)
+            visualFormSb.setLength(0);
+            if (!xResonanceFactor.isEmpty()) visualFormSb.append(xResonanceFactor).append(" * ");
             visualFormSb.append(polynomialVisual);
             if (!expFactor.isEmpty()) visualFormSb.append(" * ").append(expFactor);
         }
@@ -270,6 +282,11 @@ public class UndeterminedCoeff {
         this.ypStarTerms.clear();
         this.ypStarTerms.addAll(uniqueYpStarTerms);
         
+        // DEBUG: mostrar listas generadas
+        System.out.println("\n   [DEBUG UC] baseUCTerms (" + baseUCTerms.size() + "): " + baseUCTerms);
+        System.out.println("   [DEBUG UC] ypStarTerms (" + ypStarTerms.size() + "): " + ypStarTerms);
+        System.out.println("   [DEBUG UC] coeffNames (" + solvedCoeffNames.size() + "): " + solvedCoeffNames);
+        
         // Reemplaza * con " * " para una visualización limpia
         return result.toString().replaceAll("\\*", " * "); 
     }
@@ -289,38 +306,145 @@ public class UndeterminedCoeff {
     public String generateParticularSolution(String ypForm, Map<String, Double> solvedCoeffs) {
         String finalYp = ypForm;
         
+        // ========== PASO 1: Reemplazar TODOS los coeficientes (incluso los cero) ==========
         for (Map.Entry<String, Double> entry : solvedCoeffs.entrySet()) {
             String coeffName = entry.getKey();
             double value = entry.getValue();
-            
-            // Reemplazar A, B, C... como palabras completas
-            String patternToReplace = "\\b" + Pattern.quote(coeffName) + "\\b"; 
-            String valueStr = formatValue(value); 
-            finalYp = finalYp.replaceAll(patternToReplace, valueStr);
+            String valueStr = formatValue(value);  // Esto incluye "0" para ceros
+            String regex = "\\b" + Pattern.quote(coeffName) + "\\b";
+            finalYp = finalYp.replaceAll(regex, valueStr);
         }
         
-        // Limpieza de la expresión final
-        finalYp = finalYp.replaceAll("\\(0\\.[0-9]{4}\\)", "0");
-        finalYp = finalYp.replaceAll("\\(0\\)", "0");
-        finalYp = finalYp.replaceAll("0\\.[0-9]{4}\\s*\\*\\s*[^\\+\\-\\)]+", "0");
-        finalYp = finalYp.replaceAll("\\b0\\s*\\*\\s*[^\\+\\-\\)]+", "0");
-        finalYp = finalYp.replaceAll("\\s*[\\+\\-]\\s*0", "");
+        // ========== PASO 2: Remover componentes residuales con variables sin resolver ==========
+        // Si hay variables de coeficiente no reemplazadas (como E, F), remover sus términos
+        // Buscar patrones como "+ (E + F * x)" o similares
+        finalYp = finalYp.replaceAll("\\+\\s*\\([A-Z].*?\\)", "");  // Remover "+ (...)"
+        finalYp = finalYp.replaceAll("\\s*\\+\\s*\\([A-Z].*?\\)", "");  // Remover " + (...)"
         
-        finalYp = finalYp.replaceAll("\\b1\\.[0-9]{4}\\s*\\*\\s*", "");
+        // ========== PASO 3: Remover términos que contienen " ± 0 * expr" ==========
+        // Estrategia: buscar y remover completamente términos con "0 *"
+        // Remover "+ 0 * expr +", "+ 0 * expr )" o "+ 0 * expr" al final
+        finalYp = finalYp.replaceAll("\\s*\\+\\s*0\\s*\\*\\s*\\w+\\s*(?:\\([^)]*\\))?\\s*(?=\\+|\\)|$)", "");
+        // Remover "- 0 * expr +", "- 0 * expr )" o "- 0 * expr" al final  
+        finalYp = finalYp.replaceAll("\\s*-\\s*0\\s*\\*\\s*\\w+\\s*(?:\\([^)]*\\))?\\s*(?=\\+|\\)|$)", "");
+        // Remover "( 0 * expr +", "( 0 * expr )" al inicio de paréntesis
+        finalYp = finalYp.replaceAll("\\(\\s*0\\s*\\*\\s*\\w+\\s*(?:\\([^)]*\\))?\\s*(?=\\+|\\))", "(");
+        // Remover "0 * expr )" al final antes de )
+        finalYp = finalYp.replaceAll("\\s*0\\s*\\*\\s*\\w+\\s*(?:\\([^)]*\\))?\\s*\\)", ")");
+        
+        // ========== PASO 4: Limpiar operadores huérfanos ==========
+        finalYp = finalYp.replaceAll("\\(\\s*\\+\\s*", "(");
+        finalYp = finalYp.replaceAll("\\(\\s*\\-\\s*", "(-");
+        finalYp = finalYp.replaceAll("\\+\\s*\\)", ")");
+        finalYp = finalYp.replaceAll("\\-\\s*\\)", ")");
+        finalYp = finalYp.replaceAll("\\*\\s*\\)", ")");
+        
+        // Remover paréntesis vacíos
+        finalYp = finalYp.replaceAll("\\(\\s*\\)", "");
+        
+        // Limpiar solo casos donde * está seguido de operador con +/- (residuo de remoción)
+        // NO limpiar * - cuando - es negación (después de operador)
+        finalYp = finalYp.replaceAll("\\)\\s*\\*\\s*\\+", ") + ");  // ") * +" → ") + "
+        
+        finalYp = finalYp.replaceAll("\\s+", " ").trim();
+        
+        // Remover múltiples paréntesis
+        while (finalYp.contains("))")) {
+            finalYp = finalYp.replaceAll("\\)\\)\\s*", ") ");
+        }
+        
+        finalYp = finalYp.replaceAll("\\(\\s*\\)", "");  // () → vacío
+        
+        // Operadores dobles
+        finalYp = finalYp.replaceAll("\\s*\\+\\s*\\+\\s*", " + ");
+        finalYp = finalYp.replaceAll("\\s*\\+\\s*-\\s*", " - ");
+        finalYp = finalYp.replaceAll("\\s*-\\s*\\+\\s*", " - ");
+        finalYp = finalYp.replaceAll("\\s*-\\s*-\\s*", " + ");
+        
+        // ========== PASO 5: Normalizar espacios ==========
+        finalYp = finalYp.replaceAll("^\\s*[\\+\\s]*", "");
+        finalYp = finalYp.replaceAll("\\s*[\\+\\*\\s]*$", "");
+        
+        // Normalizar espacios alrededor de operadores
+        finalYp = finalYp.replaceAll("([a-zA-Z0-9\\)\\]x])\\s*([\\+\\-])\\s*", "$1 $2 ");
+        finalYp = finalYp.replaceAll("\\)\\s*\\+\\s*\\(", ") + (");
+        
+        finalYp = finalYp.replaceAll("\\s+", " ").trim();
+        
+        // ========== PASO 6: Simplificar "1 * expr" a "expr" ==========
         finalYp = finalYp.replaceAll("\\b1\\s*\\*\\s*", "");
-        finalYp = finalYp.replaceAll("\\b-1\\.[0-9]{4}\\s*\\*\\s*", "-");
-        finalYp = finalYp.replaceAll("\\b-1\\s*\\*\\s*", "-");
         
-        finalYp = finalYp.replaceAll("\\(([\\-\\+]?[0-9\\.]+)\\)", "$1");
+        // ========== PASO 7: Remover paréntesis externos (múltiples pasadas) ==========
+        for (int iter = 0; iter < 5; iter++) {
+            // Limpiar primero operadores +/- huérfanos
+            finalYp = finalYp.replaceAll("\\(\\s*\\+\\s*", "(");
+            finalYp = finalYp.replaceAll("\\(\\s*\\-\\s*", "(-");
+            finalYp = finalYp.replaceAll("\\+\\s*\\)", ")");
+            finalYp = finalYp.replaceAll("\\-\\s*\\)", ")");
+            finalYp = finalYp.replaceAll("\\*\\s*\\)", ")");
+            finalYp = finalYp.replaceAll("\\(\\s*\\)", "");  // () vacío
+            
+            // Ahora intentar remover paréntesis externos equilibrados
+            if (finalYp.startsWith("(") && finalYp.endsWith(")")) {
+                int balance = 0;
+                boolean canRemove = true;
+                for (int i = 0; i < finalYp.length(); i++) {
+                    if (finalYp.charAt(i) == '(') balance++;
+                    if (finalYp.charAt(i) == ')') balance--;
+                    if (balance == 0 && i < finalYp.length() - 1) {
+                        canRemove = false;
+                        break;
+                    }
+                }
+                if (canRemove && balance == 0) {
+                    finalYp = finalYp.substring(1, finalYp.length() - 1).trim();
+                }
+            }
+            finalYp = finalYp.replaceAll("\\s+", " ").trim();
+        }
         
-        Pattern zeroTerm = Pattern.compile("(\\s*[\\+\\-]\\s*0)");
-        finalYp = zeroTerm.matcher(finalYp).replaceAll("");
-        finalYp = finalYp.replaceAll("^0\\s*\\+\\s*", "");
-        finalYp = finalYp.replaceAll("^\\s*\\+\\s*", "");
+        // ========== PASO 7B: Corregir paréntesis desbalanceados ==========
+        int open = 0, close = 0;
+        for (char c : finalYp.toCharArray()) {
+            if (c == '(') open++;
+            if (c == ')') close++;
+        }
         
-        finalYp = finalYp.trim().replaceAll("\\s+", " ");
-
-        if (finalYp.isEmpty() || finalYp.matches("^\\s*[\\+\\-]\\s*0$")) return "0";
+        // Agregar paréntesis de cierre si faltan
+        if (open > close) {
+            finalYp = finalYp + ")".repeat(open - close);
+        }
+        // Remover paréntesis de apertura al inicio que sobraron
+        if (close > open) {
+            for (int i = 0; i < close - open; i++) {
+                finalYp = finalYp.replaceFirst("^\\s*\\(\\s*", "");
+            }
+        }
+        
+        // Pasar final para remover paréntesis externos sobrantes
+        while (finalYp.startsWith("(") && finalYp.endsWith(")")) {
+            int bal = 0;
+            boolean canRemoveOuter = true;
+            for (int i = 0; i < finalYp.length(); i++) {
+                if (finalYp.charAt(i) == '(') bal++;
+                if (finalYp.charAt(i) == ')') bal--;
+                if (bal == 0 && i < finalYp.length() - 1) {
+                    canRemoveOuter = false;
+                    break;
+                }
+            }
+            if (canRemoveOuter && bal == 0) {
+                finalYp = finalYp.substring(1, finalYp.length() - 1).trim();
+            } else {
+                break;
+            }
+        }
+        
+        finalYp = finalYp.trim();
+        
+        if (finalYp.isEmpty()) {
+            return "0";
+        }
         
         return finalYp;
     }

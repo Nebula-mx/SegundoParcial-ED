@@ -151,9 +151,10 @@ public class Main {
             System.out.println("   y_h(x) = " + solution_h);
 
             // --- FASE DE SOLUCIÓN PARTICULAR (y_p) ---
+            String solution_p = null;  // Declarar a nivel superior para usarlo en PVI
             if (!data.getIsHomogeneous()) {
                 String g_x = data.getIndependentTerm().get("g(x)");
-                String solution_p = "";
+                solution_p = "";
 
                 System.out.println("\n╔════════════════════════════════════════════════════════════╗");
                 System.out.println("║        PASO 2: SOLUCIÓN PARTICULAR (y_p)                  ║");
@@ -191,10 +192,11 @@ public class Main {
                         System.out.println("   ✅ UC fue exitoso");
                         
                     } catch (ArithmeticException e) {
-                        // UC maneja resonancia internamente - no cambiar de método
-                        System.out.println("   ⚠️ Sistema singular detectado (posible RESONANCIA)");
-                        System.out.println("   ℹ️ UC resuelve resonancia analíticamente...");
-                        metodoPrincipalFallo = false;  // No es un fallo, UC lo maneja
+                        // Sistema singular (matriz no inversible) → resonancia que UC no puede resolver
+                        // Hacer fallback a VP
+                        System.out.println("   ⚠️ Sistema singular detectado (RESONANCIA)");
+                        System.out.println("   ℹ️ Switcheando a Variación de Parámetros...");
+                        metodoPrincipalFallo = true;  // Sí es un fallo, hacer fallback a VP
                         
                     } catch (Exception e) {
                         metodoPrincipalFallo = true;
@@ -275,8 +277,19 @@ public class Main {
                 }
                 
                 try {
-                    // Crear solver de CI
-                    InitialConditionsSolver ciSolver = new InitialConditionsSolver(solution_h, order);
+                    // Construir la solución general COMPLETA (y_h + y_p) para pasar al solver
+                    String generalSolutionComplete;
+                    if (!data.getIsHomogeneous() && solution_p != null && !solution_p.startsWith("ERROR")) {
+                        String cleanedYpForCI = solution_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
+                        // Construir sin "y(x) = " porque InitialConditionsSolver lo añade internamente
+                        generalSolutionComplete = "(" + solution_h + ") + (" + cleanedYpForCI + ")";
+                    } else {
+                        // Solo solución homogénea
+                        generalSolutionComplete = solution_h;
+                    }
+                    
+                    // Crear solver de CI con la solución general COMPLETA
+                    InitialConditionsSolver ciSolver = new InitialConditionsSolver(generalSolutionComplete, order);
                     
                     // Parsear condiciones
                     List<InitialConditionsSolver.InitialCondition> parsedConditions = 
@@ -292,7 +305,7 @@ public class Main {
                         System.out.println("         " + entry.getKey() + " = " + formatted);
                     }
                     
-                    // Aplicar constantes a la solución
+                    // Aplicar constantes a la solución general completa
                     String particularSolution = ciSolver.applyConstants(solvedConstants);
                     
                     System.out.println("\n╔════════════════════════════════════════════════════════════╗");
@@ -303,6 +316,7 @@ public class Main {
                 } catch (Exception e) {
                     System.out.println("\n   ⚠️  No se pudieron aplicar las CI: " + e.getMessage());
                     System.out.println("       La solución general sigue siendo válida.");
+                    e.printStackTrace();  // Mostrar stack trace para debugging
                 }
             }
             
@@ -507,10 +521,20 @@ public class Main {
         EcuationParser parser = new EcuationParser();
         
         try {
-            // Validar
+            // Validar ecuación
             if (ecuacion == null || ecuacion.trim().isEmpty()) {
                 resultado.put("status", "ERROR");
                 resultado.put("message", "Ecuación vacía");
+                resultado.put("code", 400);
+                return resultado;
+            }
+            
+            // Validar que la ecuación esté bien formada (no esté incompleta)
+            ecuacion = ecuacion.trim();
+            if (ecuacion.endsWith("=") || ecuacion.endsWith("+") || ecuacion.endsWith("-") || 
+                ecuacion.endsWith("*") || ecuacion.endsWith("/")) {
+                resultado.put("status", "ERROR");
+                resultado.put("message", "Ecuación malformada: termina con operador incompleto");
                 resultado.put("code", 400);
                 return resultado;
             }
@@ -521,6 +545,33 @@ public class Main {
                 resultado.put("message", "No es una ecuación diferencial válida");
                 resultado.put("code", 400);
                 return resultado;
+            }
+            
+            // Validar método
+            if (metodo != null && !metodo.isEmpty()) {
+                String metodoUpperCase = metodo.toUpperCase();
+                if (!"UC".equals(metodoUpperCase) && !"VP".equals(metodoUpperCase) && !"AUTO".equals(metodoUpperCase)) {
+                    resultado.put("status", "ERROR");
+                    resultado.put("message", "Método inválido. Opciones: 'UC', 'VP' o 'AUTO'");
+                    resultado.put("code", 400);
+                    return resultado;
+                }
+                // Normalizar método
+                metodo = metodoUpperCase;
+            } else {
+                metodo = "AUTO";
+            }
+            
+            // Validar formato de condiciones iniciales
+            if (condicionesIniciales != null && !condicionesIniciales.isEmpty()) {
+                for (String ci : condicionesIniciales) {
+                    if (!esFormatoCondicionInicialValido(ci)) {
+                        resultado.put("status", "ERROR");
+                        resultado.put("message", "Formato de CI inválido: '" + ci + "'. Usa: y(x)=valor, y'(x)=valor, y''(x)=valor, etc.");
+                        resultado.put("code", 400);
+                        return resultado;
+                    }
+                }
             }
             
             // Parsear
@@ -645,7 +696,8 @@ public class Main {
             String finalSolution;
             if (!data.getIsHomogeneous() && solution_p != null && !solution_p.startsWith("ERROR")) {
                 String cleanedYp = solution_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
-                finalSolution = "y(x) = (" + solution_h + ") + (" + cleanedYp + ")";
+                // No agregar paréntesis extra si no son necesarios
+                finalSolution = "y(x) = " + solution_h + " + " + cleanedYp;
             } else {
                 finalSolution = "y(x) = " + solution_h;
             }
@@ -654,13 +706,27 @@ public class Main {
             resultado.put("solutionLatex", toLatex(finalSolution));
             
             // APLICAR CONDICIONES INICIALES SI LAS HAY
-            if (!condicionesIniciales.isEmpty()) {
+            if (condicionesIniciales != null && !condicionesIniciales.isEmpty()) {
+                // Validar que número de CI = orden de EDO
+                if (condicionesIniciales.size() != order) {
+                    resultado.put("status", "ERROR");
+                    resultado.put("message", 
+                        "Se esperaban " + order + " condición(es) inicial(es) pero se proporcionaron " + 
+                        condicionesIniciales.size());
+                    resultado.put("code", 400);
+                    resultado.put("executionTimeMs", System.currentTimeMillis() - startTime);
+                    return resultado;
+                }
+                
                 try {
-                    InitialConditionsSolver ciSolver = new InitialConditionsSolver(solution_h, order);
+                    // Preparar la solución completa (y_h + y_p) para pasar a InitialConditionsSolver
+                    String generalSolutionString = finalSolution.replace("y(x) = ", "").trim();
+                    
+                    InitialConditionsSolver ciSolver = new InitialConditionsSolver(generalSolutionString, order);
                     List<InitialConditionsSolver.InitialCondition> parsedConditions = 
                         InitialConditionsSolver.parseConditions(condicionesIniciales);
                     
-                    if (!parsedConditions.isEmpty()) {
+                    if (!parsedConditions.isEmpty() && parsedConditions.size() == order) {
                         Map<String, Double> solvedConstants = ciSolver.solveInitialConditions(parsedConditions);
                         
                         // Agregar constantes al resultado
@@ -670,21 +736,18 @@ public class Main {
                         }
                         resultado.put("constants", constantsMap);
                         
-                        // Aplicar constantes a la solución homogénea
+                        // Aplicar constantes a la solución completa
                         String particularSolution = ciSolver.applyConstants(solvedConstants);
                         
-                        // Actualizar solución final si es no-homogénea
-                        if (!data.getIsHomogeneous() && solution_p != null && !solution_p.startsWith("ERROR")) {
-                            String cleanedYp = solution_p.replaceAll("^y_p\\(x\\)\\s*=\\s*", "").trim();
-                            finalSolution = "y(x) = (" + particularSolution + ") + (" + cleanedYp + ")";
-                        } else {
-                            finalSolution = "y(x) = " + particularSolution;
-                        }
+                        // Actualizar solución final con las constantes aplicadas
+                        finalSolution = "y(x) = " + particularSolution;
                         
                         resultado.put("finalSolution", finalSolution);
                         resultado.put("solutionLatex", toLatex(finalSolution));
                         resultado.put("initialConditions", condicionesIniciales);
                         resultado.put("withInitialConditions", true);
+                    } else {
+                        resultado.put("initialConditionsWarning", "No se pudieron parsear correctamente todas las CI.");
                     }
                 } catch (Exception e) {
                     // Si falla, mantener la solución general
@@ -754,6 +817,21 @@ public class Main {
         latex = latex.replace("sin(", "\\sin(");
         latex = latex.replace("cos(", "\\cos(");
         return latex;
+    }
+    
+    /**
+     * Valida el formato de una condición inicial
+     * Formatos válidos: y(0)=1, y'(0)=2, y''(0)=3, etc.
+     */
+    private static boolean esFormatoCondicionInicialValido(String ci) {
+        if (ci == null || ci.trim().isEmpty()) {
+            return false;
+        }
+        
+        // Patrón: y (con cero o más ') ( número ) = número
+        // Ejemplo: y(0)=1, y'(1)=-2, y''(0.5)=3, etc.
+        String pattern = "^\\s*y'{0,}\\s*\\(\\s*[+\\-]?\\d*\\.?\\d+\\s*\\)\\s*=\\s*[+\\-]?\\d*\\.?\\d+\\s*$";
+        return ci.matches(pattern);
     }
     
     /**

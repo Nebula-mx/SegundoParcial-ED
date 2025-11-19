@@ -30,29 +30,46 @@ public class RootConsolidator {
         // Las raíces ya están normalizadas (beta >= 0) gracias al constructor de Root.java.
         List<Root> rootsToProcess = new ArrayList<>(simpleRoots);
 
-        // Paso 2: Agrupar por igualdad (usando tolerancia) y sumar multiplicidad
-        
+        // Paso 2: Agrupar raíces reales por valor y agrupar pares complejos conjugados en UNA entrada
         while (!rootsToProcess.isEmpty()) {
             Root current = rootsToProcess.remove(0);
-            int multiplicity = 1;
-            
-            // Iterar sobre el resto de la lista para encontrar coincidencias
-            for (int i = 0; i < rootsToProcess.size(); i++) {
-                Root next = rootsToProcess.get(i);
-                
-                // CRÍTICO: Comprobar igualdad en ambas partes (ya normalizadas a beta >= 0)
-                boolean realMatch = Math.abs(current.getReal() - next.getReal()) < TOLERANCE;
-                boolean imagMatch = Math.abs(current.getImaginary() - next.getImaginary()) < TOLERANCE;
+            double curReal = current.getReal();
+            double curImag = current.getImaginary();
+            int multiplicity = current.getMultiplicity();
 
-                if (realMatch && imagMatch) {
-                    multiplicity++;
-                    rootsToProcess.remove(i); // Remover el duplicado
-                    i--; // Ajustar el índice debido a la remoción
+            // Si es raíz real (imag ~= 0), agrupar todas las raíces reales iguales
+            if (Math.abs(curImag) < TOLERANCE) {
+                for (int i = 0; i < rootsToProcess.size(); i++) {
+                    Root next = rootsToProcess.get(i);
+                    if (Math.abs(next.getImaginary()) < TOLERANCE && Math.abs(curReal - next.getReal()) < TOLERANCE) {
+                        multiplicity += next.getMultiplicity();
+                        rootsToProcess.remove(i);
+                        i--;
+                    }
                 }
+                consolidated.add(new Root(curReal, 0.0, multiplicity));
+            } else {
+                // Raíz compleja: buscar conjugado (misma parte real, parte imaginaria con signo opuesto)
+                int conjugateIndex = -1;
+                for (int i = 0; i < rootsToProcess.size(); i++) {
+                    Root next = rootsToProcess.get(i);
+                    if (Math.abs(curReal - next.getReal()) < TOLERANCE && Math.abs(curImag + next.getImaginary()) < TOLERANCE) {
+                        conjugateIndex = i;
+                        // Para pares conjugados, la multiplicidad algebraica del par es la misma
+                        // en ambos elementos; tomar el máximo evita duplicar (sumar) contadores.
+                        multiplicity = Math.max(multiplicity, next.getMultiplicity());
+                        break;
+                    }
+                }
+
+                // Si encontramos el conjugado, removerlo
+                if (conjugateIndex >= 0) {
+                    rootsToProcess.remove(conjugateIndex);
+                }
+
+                // Normalizar la parte imaginaria a su magnitud positiva para la representación canónica
+                consolidated.add(new Root(curReal, Math.abs(curImag), multiplicity));
             }
-            
-            // Añadir la raíz consolidada
-            consolidated.add(new Root(current.getReal(), current.getImaginary(), multiplicity));
         }
 
         return consolidated;
