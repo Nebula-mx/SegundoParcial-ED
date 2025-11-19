@@ -1,0 +1,31 @@
+{
+  "particularMethod": "UC",
+  "expression": "y'' - 2y' + y = arctan(x)",
+  "code": 200,
+  "executionTimeMs": 456,
+  "initialConditions": [
+    "y(0) = 1",
+    "y'(0) = 0"
+  ],
+  "roots": [
+    {
+      "imaginary": 0.0,
+      "display": "1 (mult: 2)",
+      "index": 1,
+      "real": 1.0
+    }
+  ],
+  "solutionLatex": "y(x) = (2.718281828459045^x*(1+0.30694347179909354*x)) + (0)",
+  "particulatSolution": 0,
+  "forcingTerm": "arctan(x)",
+  "isHomogeneous": false,
+  "constants": {
+    "C1": 1.0,
+    "C2": 0.30694347179909354
+  },
+  "withInitialConditions": true,
+  "homogeneousSolution": "C1 * e^(x) + C2 * x * e^(x)",
+  "order": 2,
+  "finalSolution": "y(x) = (2.718281828459045^x*(1+0.30694347179909354*x)) + (0)",
+  "status": "SUCCESS"
+}

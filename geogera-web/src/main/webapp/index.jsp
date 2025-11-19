@@ -37,38 +37,33 @@
       <section id="CA-initialConditionsForm">
         <h3>Condiciones Iniciales</h3>
         <legend>Define los valores iniciales conocidos</legend>
-        <form>
+        <form action="solve" method="post" id="initialConditionsForm">
           <div class="formDoubleInputsContainer">
-            <input type="text" class="IC-variableValues" name="initialConditions" placeholder="y(0)" required value="y(0)">
-            <input type="text" class="IC-variableResult" name="initialConditions" placeholder="Valor" required>
+            <input type="text" name="conditionVariable" class="IC-variableValues" name="initialConditions" placeholder="y(0)" required value="y(0)">
+            <input type="text" name="conditionValue" class="IC-variableResult" name="initialConditions" placeholder="Valor" required>
           </div>
         </form>
-      <button type="button" onclick="addInitialCondition()">Agregar otra condición</button>
+        <button id="addInitialCondition" type="button">Agregar otra condición</button>
       </section>
-      <button id="resolveEquation" type="submit" formmethod="post" formaction="solve">Resolver Ecuación</button>
     </aside>
     <main id="EQ-resolutionMain">
       <section id="EQ-resMethod">
         <h3>Métodos de Resolución</h3>
         <legend>Selecciona el método que deseas utilizar para resolver la ecuación</legend>
-        <div id="resMethod-select">
-          <input type="radio" id="method1" name="method" value="method1" checked>
+        <form id="resMethod-select">
+          <input type="radio" id="autoMethod" name="method" value="AUTO" checked>
+          <label for="autoMethod">Atomático</label>
+
+          <input type="radio" id="method1" name="method" value="UC">
           <label for="method1">Coeficientes Indeterminados</label>
 
-          <input type="radio" id="method2" name="method" value="method2">
+          <input type="radio" id="method2" name="method" value="VP">
           <label for="method2">Variacion de Parámetros</label>
-        </div>
+        </form>
+        <button id="resolveEquation" type="submit" formmethod="post" formaction="solve">Resolver Ecuación</button>
       </section>
       <section id="EQ-finalRes">
-        <h3>Resultado</h3>
-        <legend>La solución de la ecuación diferencial aparecerá aquí</legend>
-        <div id="result">
-          <% if (request.getAttribute("solution") != null) { %>
-              <p><strong>Solución:</strong> <%= request.getAttribute("solution") %></p>
-          <% } else { %>
-              <p>Aún no se ha resuelto ninguna ecuación.</p>
-          <% } %>
-        </div>
+        <div id="result"></div>
     </main>
   </section>
   <script type="module" src="js/index.js"></script>

@@ -726,7 +726,9 @@ public class Main {
      * NUEVO: Convertir StepResponse a JSON string
      */
     public static String evaluateWithStepsAsJson(String ecuacion) {
-        return evaluateWithStepsAsJson(ecuacion, "AUTO");
+        String res = evaluateWithStepsAsJson(ecuacion, "AUTO");
+        System.out.println(res);
+        return res;
     }
     
     /**
